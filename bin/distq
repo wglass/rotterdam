@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import logging
 import sys
 
 from distq.master import Master
@@ -10,7 +11,15 @@ parser = argparse.ArgumentParser(description="DistQ master process runner")
 parser.add_argument(
     "-c", "--config", type=str, help="Location of the config file to load"
 )
+parser.add_argument(
+    "-d", "--debug", help="Enable debugging output", action="store_true"
+)
 
 args = parser.parse_args(sys.argv[1:])
+
+if args.debug:
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(level=logging.INFO)
 
 Master(args.config).run()
