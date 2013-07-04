@@ -16,8 +16,6 @@ from .config import Config
 from .worker import Worker
 from .job import Job
 
-PID_FILE_PATH = "/tmp/run/distq.pid"
-
 
 class Master(object):
 
@@ -30,8 +28,7 @@ class Master(object):
 
     def __init__(self, config_file):
         self.pid = None
-        self.pid_file_path = PID_FILE_PATH
-        self.socket = None
+        self.pid_file_path = None
         self.reexec_pid = 0
 
         self.name = "master"
@@ -42,6 +39,8 @@ class Master(object):
         self.load_config()
 
         self.workers = {}
+
+        self.socket = None
 
         self.job_queue = queues.Queue()
         self.results_queue = queues.Queue()
@@ -62,6 +61,7 @@ class Master(object):
     def load_config(self):
         self.config = Config(self.config_file)
         self.config.load()
+        self.pid_file_path = self.config.master.pid_file
         self.number_of_workers = self.config.master.num_workers
 
     def setup_pid_file(self):
