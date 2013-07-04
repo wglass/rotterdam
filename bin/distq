@@ -9,7 +9,7 @@ from distq.master import Master
 parser = argparse.ArgumentParser(description="DistQ master process runner")
 
 parser.add_argument(
-    "-c", "--config", type=str, help="Location of the config file to load"
+    "config_file", type=str, help="Location of the config file to load"
 )
 parser.add_argument(
     "-d", "--debug", help="Enable debugging output", action="store_true"
@@ -22,4 +22,4 @@ if args.debug:
 else:
     logging.basicConfig(level=logging.INFO)
 
-Master(args.config).run()
+Master(args.config_file).run()
