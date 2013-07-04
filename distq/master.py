@@ -9,6 +9,7 @@ import sys
 import time
 from multiprocessing import queues
 
+import redis
 import setproctitle
 
 from .config import Config
@@ -38,13 +39,14 @@ class Master(object):
         self.logger = logging.getLogger(__name__)
 
         self.config_file = config_file
-
         self.load_config()
 
         self.workers = {}
 
         self.job_queue = queues.Queue()
         self.results_queue = queues.Queue()
+
+        self.redis = None
 
         self.wind_down_time = None
 
@@ -85,6 +87,13 @@ class Master(object):
         else:
             fd.close()
 
+    def setup_datastore(self):
+        if ":" in self.config.master.redis:
+            host, port = self.config.master.redis.split(":")
+            self.redis = redis.Redis(host=host, port=port)
+        else:
+            self.redis = redis.Redis(host=self.config.master.redis)
+
     def setup_socket(self):
         try:
             os.unlink(self.config.master.listen)
@@ -114,10 +123,12 @@ class Master(object):
             )
 
     def run(self):
-        self.logger.info("Starting %s", self.name)
         self.pid = os.getpid()
+        self.logger.info("Starting %s (%d)", self.name, int(self.pid))
 
         self.setup_pid_file()
+
+        self.setup_datastore()
 
         self.deserialize_queue()
 
