@@ -14,6 +14,7 @@ import setproctitle
 
 from .config import Config
 from .worker import Worker
+from .job import Job
 from .job_iterator import JobIterator
 
 
@@ -319,15 +320,22 @@ class Master(object):
 
     def serialize_queue(self):
         self.logger.debug("serializing remaining queue")
-        jobs = []
-        while not self.job_queue.empty():
-            jobs.append(self.job_queue.get())
 
-        self.logger.debug(jobs)
+        while not self.job_queue.empty():
+            job = self.job_queue.get()
+            self.redis.rpush("serialized_queue", job.serialize())
+            self.logger.debug(job)
 
     def deserialize_queue(self):
         self.logger.debug("deserializing remaining queue")
-        pass
+
+        while True:
+            serialized_job = self.redis.lpop("serialized_queue")
+            if serialized_job is None:
+                break
+
+            self.logger.debug(serialized_job)
+            self.job_queue.put_nowait(Job(serialized_job))
 
     def wind_down(self, signal_to_broadcast=signal.SIGQUIT):
         self.logger.info("Winding down %s", self.name)

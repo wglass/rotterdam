@@ -26,7 +26,9 @@ class JobIterator(object):
                 if e.errno not in [errno.EAGAIN, errno.EINTR]:
                     raise
 
-        job = Job(message)
+        job = Job()
+
+        job.deserialize(message)
 
         if not job:
             raise StopIteration
