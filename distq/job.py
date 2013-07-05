@@ -9,13 +9,15 @@ SOCKET_BUFFER_SIZE = 4096
 class Job(object):
 
     def __init__(self):
-        self.spec = None
+        self.module = None
+        self.function = None
         self.args = None
         self.kwargs = None
 
     def serialize(self):
         return json.dumps({
-            "spec": self.spec,
+            "module": self.module,
+            "function": self.function,
             "args": self.args,
             "kwargs": self.kwargs
         })
@@ -23,9 +25,8 @@ class Job(object):
     def deserialize(self, payload):
         payload = json.loads(payload)
 
-        self.spec = payload['spec']
-        self.args = payload['args']
-        self.kwargs = payload['kwargs']
+        for attribute in ['module', 'function', 'args', 'kwargs']:
+            setattr(self, attribute, payload[attribute])
 
     def __repr__(self):
         arg_string = ", ".join(self.args)
@@ -35,8 +36,9 @@ class Job(object):
         ])
         if arg_string and kwarg_string:
             kwarg_string = ", " + kwarg_string
-        return "%(func_name)s(%(args)s%(kwargs)s)" % {
-            "func_name": self.spec,
+        return "%(module)s.%(func_name)s(%(args)s%(kwargs)s)" % {
+            "module": self.module,
+            "func_name": self.function,
             "args": arg_string,
             "kwargs": kwarg_string
         }

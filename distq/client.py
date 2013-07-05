@@ -26,7 +26,8 @@ class Client(object):
             self.connect()
 
         self.socket.sendall(json.dumps({
-            "spec": func.__module__ + "." + func.func_name,
+            "module": func.__module__,
+            "function": func.__name__,
             "args": args,
             "kwargs": kwargs
         }) + "\n")
