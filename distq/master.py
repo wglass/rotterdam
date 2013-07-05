@@ -14,8 +14,7 @@ import setproctitle
 
 from .config import Config
 from .worker import Worker
-from .job import Job
-from .job_iterator import JobIterator
+from .job import Job, job_iterator
 
 
 class Master(object):
@@ -366,11 +365,8 @@ class Master(object):
     def handle_payload(self):
         conn, addr = self.socket.accept()
 
-        for job in JobIterator(conn):
-            self.logger.debug(
-                "got job: %s",
-                job
-            )
+        for job in job_iterator(conn):
+            self.logger.debug("got job: %s", job)
             self.job_queue.put_nowait(job)
 
         conn.close()
