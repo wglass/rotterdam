@@ -14,6 +14,8 @@ class Job(object):
         self.args = None
         self.kwargs = None
 
+        self.call = None
+
     def serialize(self):
         return json.dumps({
             "module": self.module,
@@ -27,6 +29,13 @@ class Job(object):
 
         for attribute in ['module', 'function', 'args', 'kwargs']:
             setattr(self, attribute, payload[attribute])
+
+    def load(self):
+        module = __import__(self.module, fromlist=self.function)
+        self.call = getattr(module, self.function)
+
+    def run(self):
+        return self.call(*self.args, **self.kwargs)
 
     def __repr__(self):
         arg_string = ", ".join(self.args)

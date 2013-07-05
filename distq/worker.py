@@ -54,9 +54,9 @@ class Worker(object):
                     self.heartbeat()
 
                 self.age += 1
-                payload = self.in_queue.get_nowait()
+                job = self.in_queue.get_nowait()
                 greenlet_pool.spawn(
-                    self.handle_payload, payload
+                    self.handle_job, job
                 )
 
             except Queue.Empty:
@@ -80,10 +80,18 @@ class Worker(object):
             self.logger.info("Parent process changed! shutting down.")
             self.alive = False
 
-    def handle_payload(self, payload):
-
+    def handle_job(self, job):
         start_time = time.time()
-        # do some stuff!
+        try:
+            job.load()
+        except:
+            self.logger.exception("Exception when loading job!")
+        else:
+            try:
+                job.run()
+            except:
+                self.logger.exception("Exception when running job!")
+
         end_time = time.time()
 
         self.out_queue.put(

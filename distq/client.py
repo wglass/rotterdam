@@ -1,5 +1,6 @@
 import json
 import socket
+import types
 
 
 class Client(object):
@@ -25,9 +26,15 @@ class Client(object):
         if not self.is_connected:
             self.connect()
 
+        if isinstance(func, basestring):
+            module, function = func.split(":")
+        elif isinstance(func, types.FunctionType):
+            module = func.__module__,
+            function = func.__name__
+
         self.socket.sendall(json.dumps({
-            "module": func.__module__,
-            "function": func.__name__,
+            "module": module,
+            "function": function,
             "args": args,
             "kwargs": kwargs
         }) + "\n")
