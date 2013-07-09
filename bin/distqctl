@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+
+from distq.control import Control
+
+
+parser = argparse.ArgumentParser(description="DistQ control utility")
+
+parser.add_argument(
+    "config_file", type=str, help="Location of the config file to load"
+)
+parser.add_argument(
+    "command", type=str, choices=["stop", "reload", "restart"],
+    help="One of stop, reload or restart"
+)
+
+args = parser.parse_args(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    Control(args).run()
