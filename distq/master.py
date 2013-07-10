@@ -15,6 +15,7 @@ import setproctitle
 from .config import Config
 from .worker import Worker
 from .job import Job, job_iterator
+from .redis_extensions import extend_redis
 
 
 class Master(object):
@@ -42,7 +43,8 @@ class Master(object):
 
         self.socket = None
 
-        self.job_queue = queues.Queue()
+        self.ready_queue = queues.Queue(maxsize=5)
+        self.taken_queue = queues.Queue()
         self.results_queue = queues.Queue()
 
         self.redis = None
@@ -94,6 +96,8 @@ class Master(object):
         else:
             self.redis = redis.Redis(host=self.config.master.redis)
 
+        extend_redis(self.redis)
+
     def setup_socket(self):
         try:
             os.unlink(self.config.master.listen)
@@ -130,7 +134,7 @@ class Master(object):
 
         self.setup_datastore()
 
-        self.deserialize_queue()
+        self.fill_ready_queue()
 
         self.setup_socket()
         self.setup_signals()
@@ -143,7 +147,11 @@ class Master(object):
         while True:
             try:
                 (input_sources, [], []) = select.select(
-                    [self.socket, self.results_queue._reader],
+                    [
+                        self.socket,
+                        self.taken_queue._reader,
+                        self.results_queue._reader
+                    ],
                     [], [],
                     self.config.master.heartbeat_interval
                 )
@@ -156,8 +164,14 @@ class Master(object):
                     self.handle_payload()
 
                 if (
-                    input_sources[0] == self.results_queue._reader
+                    input_sources[0] == self.taken_queue._reader
                     or len(input_sources) > 1
+                ):
+                    self.handle_taken_job()
+
+                if (
+                    input_sources[0] == self.results_queue._reader
+                    or len(input_sources) > 2
                 ):
                     self.handle_worker_result()
 
@@ -291,7 +305,8 @@ class Master(object):
 
     def spawn_worker(self):
         worker = Worker(
-            self.job_queue,
+            self.ready_queue,
+            self.taken_queue,
             self.results_queue,
             self.config.workers
         )
@@ -317,28 +332,8 @@ class Master(object):
         finally:
             self.logger.info("Worker exiting")
 
-    def serialize_queue(self):
-        self.logger.debug("serializing remaining queue")
-
-        while not self.job_queue.empty():
-            job = self.job_queue.get()
-            self.redis.rpush("serialized_queue", job.serialize())
-            self.logger.debug(job)
-
-    def deserialize_queue(self):
-        self.logger.debug("deserializing remaining queue")
-
-        while True:
-            serialized_job = self.redis.lpop("serialized_queue")
-            if serialized_job is None:
-                break
-
-            self.logger.debug(serialized_job)
-            self.job_queue.put_nowait(Job(serialized_job))
-
     def wind_down(self, signal_to_broadcast=signal.SIGQUIT):
         self.logger.info("Winding down %s", self.name)
-        self.serialize_queue()
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )
@@ -362,14 +357,67 @@ class Master(object):
     def heartbeat(self):
         pass
 
+    def fill_ready_queue(self):
+        while True:
+            try:
+                payloads = self.redis.qget("rotterdam", int(time.time()))
+
+                if not payloads:
+                    break
+
+                for payload in payloads:
+                    job = Job()
+                    job.deserialize(payload)
+                    self.logger.debug(
+                        "Queueing job: %s", job
+                    )
+                    self.redis.qsetstate(
+                        "rotterdam",
+                        "schedule",
+                        "ready",
+                        job.unique_key
+                    )
+                    self.ready_queue.put_nowait(job)
+            except Queue.Full:
+                break
+
     def handle_payload(self):
         conn, addr = self.socket.accept()
 
         for job in job_iterator(conn):
             self.logger.debug("got job: %s", job)
-            self.job_queue.put_nowait(job)
+            self.redis.qadd(
+                "rotterdam",
+                job.when,
+                job.unique_key,
+                job.serialize()
+            )
+
+        self.fill_ready_queue()
 
         conn.close()
+
+    def handle_taken_job(self):
+        while True:
+            try:
+                taken = self.taken_queue.get_nowait()
+
+                self.logger.debug(
+                    "Job started %s",
+                    taken["job"]
+                )
+
+                self.redis.qsetstate(
+                    "rotterdam",
+                    "ready",
+                    "working",
+                    taken["job"].unique_key
+                )
+
+            except Queue.Empty:
+                break
+
+        self.fill_ready_queue()
 
     def handle_worker_result(self):
         while True:
@@ -379,6 +427,13 @@ class Master(object):
                 self.logger.debug(
                     "Job completed in %0.2fs seconds",
                     result["time"]
+                )
+
+                self.redis.qsetstate(
+                    "rotterdam",
+                    "working",
+                    "done",
+                    result["job"].unique_key
                 )
 
             except Queue.Empty:

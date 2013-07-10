@@ -13,8 +13,9 @@ class Worker(object):
 
     understood_signals = ["QUIT", "TERM", "INT"]
 
-    def __init__(self, in_queue, out_queue, config):
+    def __init__(self, in_queue, taken_queue, out_queue, config):
         self.in_queue = in_queue
+        self.taken_queue = taken_queue
         self.out_queue = out_queue
         self.config = config
 
@@ -82,6 +83,13 @@ class Worker(object):
 
     def handle_job(self, job):
         start_time = time.time()
+        self.taken_queue.put(
+            {
+                "time": start_time,
+                "job": job
+            }
+        )
+
         try:
             job.load()
         except:
@@ -96,7 +104,8 @@ class Worker(object):
 
         self.out_queue.put(
             {
-                "time": end_time - start_time
+                "time": end_time - start_time,
+                "job": job
             }
         )
 

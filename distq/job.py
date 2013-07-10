@@ -9,6 +9,9 @@ SOCKET_BUFFER_SIZE = 4096
 class Job(object):
 
     def __init__(self):
+        self.when = None
+        self.unique_key = None
+
         self.module = None
         self.function = None
         self.args = None
@@ -18,6 +21,8 @@ class Job(object):
 
     def serialize(self):
         return json.dumps({
+            "when": self.when,
+            "unique_key": self.unique_key,
             "module": self.module,
             "function": self.function,
             "args": self.args,
@@ -27,7 +32,9 @@ class Job(object):
     def deserialize(self, payload):
         payload = json.loads(payload)
 
-        for attribute in ['module', 'function', 'args', 'kwargs']:
+        for attribute in [
+            'when', 'unique_key', 'module', 'function', 'args', 'kwargs'
+        ]:
             setattr(self, attribute, payload[attribute])
 
     def load(self):
