@@ -1,21 +1,17 @@
 import errno
 import logging
 import os
-import Queue
-import select
 import signal
 import socket
 import sys
 import time
 from multiprocessing import queues
 
-import redis
 import setproctitle
 
 from .config import Config
 from .worker import Worker
-from .job import Job, job_iterator
-from .redis_extensions import extend_redis
+from .arbiter import Arbiter
 
 
 class Master(object):
@@ -50,8 +46,6 @@ class Master(object):
         self.ready_queue = queues.Queue(maxsize=5)
         self.taken_queue = queues.Queue()
         self.results_queue = queues.Queue()
-
-        self.redis = None
 
         self.wind_down_time = None
 
@@ -93,26 +87,16 @@ class Master(object):
         else:
             fd.close()
 
-    def setup_datastore(self):
-        if ":" in self.config.master.redis:
-            host, port = self.config.master.redis.split(":")
-            self.redis = redis.Redis(host=host, port=port)
-        else:
-            self.redis = redis.Redis(host=self.config.master.redis)
-
-        extend_redis(self.redis)
-
     def setup_socket(self):
-        self.logger.info(
-            "Listening on port %s", self.config.master.listen_port
-        )
-
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setblocking(0)
         self.socket.bind(
             ('', int(self.config.master.listen_port))
         )
         self.socket.listen(5)
+        self.logger.info(
+            "Listening on port %s", self.config.master.listen_port
+        )
 
     def setup_signals(self):
         for signal_name, handler_name in self.signal_map.iteritems():
@@ -126,11 +110,6 @@ class Master(object):
         self.logger.info("Starting %s (%d)", self.name, int(self.pid))
 
         self.setup_pid_file()
-
-        self.setup_datastore()
-
-        self.fill_ready_queue()
-
         self.setup_socket()
         self.setup_signals()
 
@@ -139,41 +118,22 @@ class Master(object):
         for i in range(self.number_of_workers):
             self.spawn_worker()
 
+        arbiter = Arbiter(
+            self.config.arbiter,
+            self.socket,
+            self.ready_queue,
+            self.taken_queue,
+            self.results_queue
+        )
+
+        arbiter.setup()
+
         while True:
             try:
-                (input_sources, [], []) = select.select(
-                    [
-                        self.socket,
-                        self.taken_queue._reader,
-                        self.results_queue._reader
-                    ],
-                    [], [],
-                    self.config.master.heartbeat_interval
+                arbiter.arbitrate(
+                    timeout=self.config.master.heartbeat_interval
                 )
-
-                if not input_sources:
-                    self.heartbeat()
-                    continue
-
-                while len(input_sources) > 0:
-                    source_with_data = input_sources.pop(0)
-
-                    if source_with_data == self.socket:
-                        self.handle_payload()
-                    elif source_with_data == self.taken_queue._reader:
-                        self.handle_taken_job()
-                    elif source_with_data == self.results_queue._reader:
-                        self.handle_worker_result()
-
-            except select.error as e:
-                if e.args[0] not in [errno.EAGAIN, errno.EINTR]:
-                    raise
-            except OSError as e:
-                if e.errno not in [errno.EAGAIN, errno.EINTR]:
-                    raise
-            except IOError as e:
-                if e.errno not in [errno.EBADF]:
-                    raise
+                self.heartbeat()
             except SystemExit:
                 raise
             except KeyboardInterrupt:
@@ -346,85 +306,3 @@ class Master(object):
 
     def heartbeat(self):
         pass
-
-    def fill_ready_queue(self):
-        while True:
-            try:
-                payloads = self.redis.qget("rotterdam", int(time.time()))
-
-                if not payloads:
-                    break
-
-                for payload in payloads:
-                    job = Job()
-                    job.deserialize(payload)
-                    self.logger.debug(
-                        "Queueing job: %s", job
-                    )
-                    self.redis.qsetstate(
-                        "rotterdam",
-                        "schedule",
-                        "ready",
-                        job.unique_key
-                    )
-                    self.ready_queue.put_nowait(job)
-            except Queue.Full:
-                break
-
-    def handle_payload(self):
-        conn, addr = self.socket.accept()
-
-        for job in job_iterator(conn):
-            self.logger.debug("got job: %s", job)
-            self.redis.qadd(
-                "rotterdam",
-                job.when,
-                job.unique_key,
-                job.serialize()
-            )
-
-        self.fill_ready_queue()
-
-        conn.close()
-
-    def handle_taken_job(self):
-        while True:
-            try:
-                taken = self.taken_queue.get_nowait()
-
-                self.logger.debug(
-                    "Job started %s",
-                    taken["job"]
-                )
-
-                self.redis.qsetstate(
-                    "rotterdam",
-                    "ready",
-                    "working",
-                    taken["job"].unique_key
-                )
-
-            except Queue.Empty:
-                break
-
-        self.fill_ready_queue()
-
-    def handle_worker_result(self):
-        while True:
-            try:
-                result = self.results_queue.get_nowait()
-
-                self.logger.debug(
-                    "Job completed in %0.2fs seconds",
-                    result["time"]
-                )
-
-                self.redis.qsetstate(
-                    "rotterdam",
-                    "working",
-                    "done",
-                    result["job"].unique_key
-                )
-
-            except Queue.Empty:
-                break
