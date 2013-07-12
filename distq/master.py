@@ -20,12 +20,16 @@ from .redis_extensions import extend_redis
 
 class Master(object):
 
-    understood_signals = [
-        "TTIN", "TTOU",
-        "HUP", "USR1",
-        "INT", "QUIT", "TERM",
-        "CHLD"
-    ]
+    signal_map = {
+        "hup": "reload_config",
+        "usr1": "relaunch",
+        "ttin": "expand_workers",
+        "ttou": "contract_workers",
+        "int": "halt_current_jobs",
+        "quit": "wind_down_gracefully",
+        "term": "wind_down_immediately",
+        "chld": "handle_worker_exit"
+    }
 
     def __init__(self, config_file):
         self.pid = None
@@ -120,10 +124,10 @@ class Master(object):
         self.socket.listen(5)
 
     def setup_signals(self):
-        for signal_name in self.understood_signals:
+        for signal_name, handler_name in self.signal_map.iteritems():
             signal.signal(
-                getattr(signal, "SIG%s" % signal_name),
-                getattr(self, "handle_%s" % signal_name.lower())
+                getattr(signal, "SIG%s" % signal_name.upper()),
+                getattr(self, handler_name)
             )
 
     def run(self):
@@ -192,7 +196,7 @@ class Master(object):
                 self.logger.exception(e)
                 sys.exit(-1)
 
-    def handle_ttin(self, *args):
+    def expand_workers(self, *args):
         self.number_of_workers += 1
         self.logger.info(
             "Upping number of workers to %d",
@@ -200,7 +204,7 @@ class Master(object):
         )
         self.spawn_worker()
 
-    def handle_ttou(self, *args):
+    def contract_workers(self, *args):
         if self.number_of_workers <= 1:
             self.logger.info(
                 "Ignoring TTOU, number of workers already at %d",
@@ -223,8 +227,8 @@ class Master(object):
 
         self.send_signal(signal.SIGQUIT, oldest_worker_pid)
 
-    def handle_hup(self, *args):
-        self.logger.info("Got HUP, reloading config")
+    def reload_config(self, *args):
+        self.logger.info("Reloading config")
         old_address = self.config.master.listen
 
         workers_by_age = sorted(
@@ -245,7 +249,7 @@ class Master(object):
             (worker_pid, _) = workers_by_age.pop(0)
             self.send_signal(signal.SIGQUIT, worker_pid)
 
-    def handle_usr1(self, *args):
+    def relaunch(self, *args):
         os.rename(
             self.pid_file_path,
             self.pid_file_path + ".old." + str(self.pid)
@@ -268,7 +272,7 @@ class Master(object):
             os.environ
         )
 
-    def handle_chld(self, *args):
+    def handle_worker_exit(self, *args):
         worker_pids = self.workers.keys()
         for worker_pid in worker_pids:
             try:
@@ -292,14 +296,14 @@ class Master(object):
                 time.sleep(self.wind_down_time - time.time())
                 self.broadcast_signal(signal.SIGKILL)
 
-    def handle_int(self, *args):
+    def halt_current_jobs(self, *args):
         self.broadcast_signal(signal.SIGINT)
 
-    def handle_quit(self, *args):
+    def wind_down_gracefully(self, *args):
         self.socket.close()
         self.wind_down()
 
-    def handle_term(self, *args):
+    def wind_down_immediately(self, *args):
         self.socket.close()
         self.wind_down(signal_to_broadcast=signal.SIGTERM)
 

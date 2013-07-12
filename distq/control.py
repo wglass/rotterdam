@@ -40,5 +40,11 @@ class Control(object):
     def reload(self):
         os.kill(self.pid, signal.SIGHUP)
 
-    def restart(self):
+    def relaunch(self):
         os.kill(self.pid, signal.SIGUSR1)
+
+    def expand(self):
+        os.kill(self.pid, signal.SIGTTIN)
+
+    def contract(self):
+        os.kill(self.pid, signal.SIGTTOU)
