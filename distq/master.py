@@ -2,7 +2,6 @@ import errno
 import logging
 import os
 import signal
-import socket
 import sys
 import time
 from multiprocessing import queues
@@ -10,6 +9,7 @@ from multiprocessing import queues
 import setproctitle
 
 from .config import Config
+from .connection import Connection
 from .worker import Worker
 from .arbiter import Arbiter
 
@@ -37,11 +37,10 @@ class Master(object):
         self.logger = logging.getLogger(__name__)
 
         self.config_file = config_file
-        self.load_config()
 
         self.workers = {}
 
-        self.socket = None
+        self.connection = None
 
         self.ready_queue = queues.Queue(maxsize=5)
         self.taken_queue = queues.Queue()
@@ -87,14 +86,11 @@ class Master(object):
         else:
             fd.close()
 
-    def setup_socket(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setblocking(0)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(
-            ('', int(self.config.master.listen_port))
+    def setup_connection(self):
+        self.connection = Connection(
+            port=self.config.master.listen_port
         )
-        self.socket.listen(5)
+        self.connection.open()
         self.logger.info(
             "Listening on port %s", self.config.master.listen_port
         )
@@ -110,8 +106,9 @@ class Master(object):
         self.pid = os.getpid()
         self.logger.info("Starting %s (%d)", self.name, int(self.pid))
 
+        self.load_config()
         self.setup_pid_file()
-        self.setup_socket()
+        self.setup_connection()
         self.setup_signals()
 
         setproctitle.setproctitle("distq: %s" % self.name)
@@ -121,7 +118,7 @@ class Master(object):
 
         arbiter = Arbiter(
             self.config.arbiter,
-            self.socket,
+            self.connection,
             self.ready_queue,
             self.taken_queue,
             self.results_queue
@@ -186,7 +183,7 @@ class Master(object):
         self.load_config()
 
         if self.config.master.listen != old_address:
-            self.socket.close()
+            self.connection.close()
             self.setup_socket()
 
         for i in range(self.number_of_workers):
@@ -202,7 +199,7 @@ class Master(object):
             self.pid_file_path + ".old." + str(self.pid)
         )
 
-        self.socket.close()
+        self.connection.close()
 
         self.reexec_pid = os.fork()
 
@@ -250,11 +247,11 @@ class Master(object):
         self.broadcast_signal(signal.SIGINT)
 
     def wind_down_gracefully(self, *args):
-        self.socket.close()
+        self.connection.close()
         self.wind_down()
 
     def wind_down_immediately(self, *args):
-        self.socket.close()
+        self.connection.close()
         self.wind_down(signal_to_broadcast=signal.SIGTERM)
 
     def spawn_worker(self):

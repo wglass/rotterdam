@@ -45,7 +45,7 @@ class Arbiter(object):
         try:
             (sources_with_data, [], []) = select.select(
                 [
-                    self.connection,
+                    self.connection.socket,
                     self.taken_queue._reader,
                     self.results_queue._reader
                 ],
@@ -56,7 +56,7 @@ class Arbiter(object):
             while len(sources_with_data) > 0:
                 source_with_data = sources_with_data.pop(0)
 
-                if source_with_data == self.connection:
+                if source_with_data == self.connection.socket:
                     self.handle_incoming_job()
                 elif source_with_data == self.taken_queue._reader:
                     self.handle_taken_job()
@@ -98,9 +98,7 @@ class Arbiter(object):
                 break
 
     def handle_incoming_job(self):
-        conn, addr = self.connection.accept()
-
-        for job in job_iterator(conn):
+        for job in self.connection.iterjobs():
             self.logger.debug("got job: %s", job)
             self.redis.qadd(
                 "rotterdam",
@@ -110,8 +108,6 @@ class Arbiter(object):
             )
 
         self.fill_ready_queue()
-
-        conn.close()
 
     def handle_taken_job(self):
         while True:
