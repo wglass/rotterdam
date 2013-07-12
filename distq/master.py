@@ -155,20 +155,15 @@ class Master(object):
                     self.heartbeat()
                     continue
 
-                if input_sources[0] == self.socket:
-                    self.handle_payload()
+                while len(input_sources) > 0:
+                    source_with_data = input_sources.pop(0)
 
-                if (
-                    input_sources[0] == self.taken_queue._reader
-                    or len(input_sources) > 1
-                ):
-                    self.handle_taken_job()
-
-                if (
-                    input_sources[0] == self.results_queue._reader
-                    or len(input_sources) > 2
-                ):
-                    self.handle_worker_result()
+                    if source_with_data == self.socket:
+                        self.handle_payload()
+                    elif source_with_data == self.taken_queue._reader:
+                        self.handle_taken_job()
+                    elif source_with_data == self.results_queue._reader:
+                        self.handle_worker_result()
 
             except select.error as e:
                 if e.args[0] not in [errno.EAGAIN, errno.EINTR]:
