@@ -7,27 +7,11 @@ import types
 
 class Client(object):
 
-    def __init__(self, address):
-        self.address = address
-        self.socket = None
-
-    def connect(self):
-        if self.socket:
-            return
-
-        sock = socket.socket(socket.AF_UNIX)
-        sock.connect(self.address)
-
-        self.socket = sock
-
-    @property
-    def is_connected(self):
-        return bool(self.socket is not None)
+    def __init__(self, host, port=8765):
+        self.host = host
+        self.port = port
 
     def enqueue(self, func, *args, **kwargs):
-        if not self.is_connected:
-            self.connect()
-
         if isinstance(func, basestring):
             module, function = func.split(":")
         elif isinstance(func, types.FunctionType):
@@ -41,10 +25,15 @@ class Client(object):
 
         for arg in args:
             uniqueness.update(str(arg))
-        for arg_name, arg_value in kwargs.iteritems():
-            uniqueness.update(str(arg_name) + "=" + str(arg_value))
+        for arg_name in sorted(kwargs.keys()):
+            uniqueness.update(
+                str(arg_name) + "=" + str(kwargs[arg_name])
+            )
 
-        self.socket.sendall(json.dumps({
+        connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        connection.connect((self.host, self.port))
+
+        connection.sendall(json.dumps({
             "when": int(time.time()),
             "unique_key": uniqueness.hexdigest(),
             "module": module,
@@ -52,3 +41,5 @@ class Client(object):
             "args": args,
             "kwargs": kwargs
         }) + "\n")
+
+        connection.close()

@@ -103,24 +103,15 @@ class Master(object):
         extend_redis(self.redis)
 
     def setup_socket(self):
-        try:
-            os.unlink(self.config.master.listen)
-        except OSError:
-            if os.path.exists(self.config.master.listen):
-                raise
+        self.logger.info(
+            "Listening on port %s", self.config.master.listen_port
+        )
 
-        self.logger.info("Listening on %s", self.config.master.listen)
-
-        if ":" in self.config.master.listen:
-            host, port = self.config.master.listen.split(":")
-            self.socket = socket.socket(socket.AF_INET)
-            self.socket.setblocking(0)
-            self.socket.bind((host, int(port)))
-        else:
-            self.socket = socket.socket(socket.AF_UNIX)
-            self.socket.setblocking(0)
-            self.socket.bind(self.config.master.listen)
-
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setblocking(0)
+        self.socket.bind(
+            ('', int(self.config.master.listen_port))
+        )
         self.socket.listen(5)
 
     def setup_signals(self):
@@ -191,7 +182,7 @@ class Master(object):
             except SystemExit:
                 raise
             except KeyboardInterrupt:
-                self.handle_quit()
+                self.wind_down_gracefully()
             except Exception, e:
                 self.logger.exception(e)
                 sys.exit(-1)
