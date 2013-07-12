@@ -173,7 +173,7 @@ class Master(object):
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
-        old_address = self.config.master.listen
+        old_port = self.config.master.listen_port
 
         workers_by_age = sorted(
             self.workers.items(),
@@ -182,9 +182,9 @@ class Master(object):
 
         self.load_config()
 
-        if self.config.master.listen != old_address:
+        if self.config.master.listen_port != old_port:
             self.connection.close()
-            self.setup_socket()
+            self.setup_connection()
 
         for i in range(self.number_of_workers):
             self.spawn_worker()
