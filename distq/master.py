@@ -90,6 +90,7 @@ class Master(object):
     def setup_socket(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setblocking(0)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(
             ('', int(self.config.master.listen_port))
         )
@@ -200,6 +201,9 @@ class Master(object):
             self.pid_file_path,
             self.pid_file_path + ".old." + str(self.pid)
         )
+
+        self.socket.close()
+
         self.reexec_pid = os.fork()
 
         if self.reexec_pid != 0:
