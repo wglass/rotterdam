@@ -1,9 +1,4 @@
-import errno
 import json
-import socket
-
-
-SOCKET_BUFFER_SIZE = 4096
 
 
 class Job(object):
@@ -58,29 +53,3 @@ class Job(object):
             "args": arg_string,
             "kwargs": kwarg_string
         }
-
-
-def job_iterator(connection):
-        message = ''
-
-        while True:
-            try:
-                chunk = connection.recv(SOCKET_BUFFER_SIZE)
-                if chunk:
-                    message = message + chunk
-            except socket.error as e:
-                if e.errno not in [errno.EAGAIN, errno.EINTR]:
-                    raise
-
-            if not message:
-                break
-
-            if "\n" in message:
-                message, extra = message.split("\n", 1)
-
-            job = Job()
-            job.deserialize(message)
-
-            yield job
-
-            message = extra

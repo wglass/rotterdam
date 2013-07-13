@@ -6,7 +6,7 @@ import time
 
 import redis
 
-from .job import Job, job_iterator
+from .job import Job
 from .redis_extensions import extend_redis
 
 
