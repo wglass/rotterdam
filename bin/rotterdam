@@ -4,9 +4,9 @@ import argparse
 import logging
 import sys
 
-from distq.master import Master
+from rotterdam.master import Master
 
-parser = argparse.ArgumentParser(description="DistQ master process runner")
+parser = argparse.ArgumentParser(description="Rotterdam master process runner")
 
 parser.add_argument(
     "config_file", type=str, help="Location of the config file to load"

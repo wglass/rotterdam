@@ -3,10 +3,10 @@
 import argparse
 import sys
 
-from distq.control import Control
+from rotterdam.control import Control
 
 
-parser = argparse.ArgumentParser(description="DistQ control utility")
+parser = argparse.ArgumentParser(description="Rotterdam control utility")
 
 parser.add_argument(
     "config_file", type=str, help="Location of the config file to load"

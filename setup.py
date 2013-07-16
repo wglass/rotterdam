@@ -1,9 +1,10 @@
 from setuptools import setup
 
 setup(
-    name="DistQ",
-    packages=["distq"],
+    name="Rotterdam",
+    packages=["rotterdam"],
     scripts=[
-        "bin/distq"
+        "bin/rotterdam",
+        "bin/rotterdamctl"
     ]
 )

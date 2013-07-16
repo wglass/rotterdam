@@ -111,7 +111,7 @@ class Master(object):
         self.setup_connection()
         self.setup_signals()
 
-        setproctitle.setproctitle("distq: %s" % self.name)
+        setproctitle.setproctitle("rotterdam: %s" % self.name)
 
         for i in range(self.number_of_workers):
             self.spawn_worker()
@@ -207,7 +207,7 @@ class Master(object):
             # old master proc
             self.name = "old master"
             self.pid_file_path += ".old." + str(self.pid)
-            setproctitle.setproctitle("distq: %s" % self.name)
+            setproctitle.setproctitle("rotterdam: %s" % self.name)
             self.wind_down()
             return
 
@@ -270,7 +270,7 @@ class Master(object):
 
         # in the worker process now
         try:
-            setproctitle.setproctitle("distq: worker")
+            setproctitle.setproctitle("rotterdam: worker")
             self.logger.info("Starting up worker")
             worker.setup()
             worker.run()
