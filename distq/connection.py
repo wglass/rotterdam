@@ -32,7 +32,7 @@ class Connection(object):
 
         while True:
             try:
-                chunk = self.socket.recv(SOCKET_BUFFER_SIZE)
+                chunk = conn.recv(SOCKET_BUFFER_SIZE)
                 if chunk:
                     message = message + chunk
             except socket.error as e:

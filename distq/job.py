@@ -1,5 +1,7 @@
 import json
 
+from .exceptions import NoSuchJob
+
 
 class Job(object):
 
@@ -33,8 +35,11 @@ class Job(object):
             setattr(self, attribute, payload[attribute])
 
     def load(self):
-        module = __import__(self.module, fromlist=self.function)
-        self.call = getattr(module, self.function)
+        try:
+            module = __import__(self.module, fromlist=self.function)
+            self.call = getattr(module, self.function)
+        except ImportError:
+            raise NoSuchJob
 
     def run(self):
         return self.call(*self.args, **self.kwargs)

@@ -7,6 +7,7 @@ import time
 import redis
 
 from .job import Job
+from .exceptions import NoSuchJob
 from .redis_extensions import extend_redis
 
 
@@ -100,6 +101,11 @@ class Arbiter(object):
     def handle_incoming_job(self):
         for job in self.connection.iterjobs():
             self.logger.debug("got job: %s", job)
+            try:
+                job.load()
+            except NoSuchJob:
+                continue
+
             self.redis.qadd(
                 "rotterdam",
                 job.when,
