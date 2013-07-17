@@ -42,9 +42,9 @@ class Master(object):
 
         self.connection = None
 
-        self.ready_queue = queues.Queue(maxsize=5)
-        self.taken_queue = queues.Queue()
-        self.results_queue = queues.Queue()
+        self.ready_queue = None
+        self.taken_queue = None
+        self.results_queue = None
 
         self.wind_down_time = None
 
@@ -102,12 +102,22 @@ class Master(object):
                 getattr(self, handler_name)
             )
 
+    def setup_ipc_queues(self):
+        self.ready_queue = queues.Queue(
+            maxsize=(
+                self.number_of_workers * self.config.workers.greenlet_pool_size
+            )
+        )
+        self.taken_queue = queues.Queue()
+        self.results_queue = queues.Queue()
+
     def run(self):
         self.pid = os.getpid()
         self.logger.info("Starting %s (%d)", self.name, int(self.pid))
 
         self.load_config()
         self.setup_pid_file()
+        self.setup_ipc_queues()
         self.setup_connection()
         self.setup_signals()
 
