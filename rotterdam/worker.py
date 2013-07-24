@@ -20,6 +20,7 @@ class Worker(object):
         self.config = config
 
         self.alive = True
+        self.active = True
         self.age = 0
 
         self.smtp_pool = None
@@ -51,7 +52,7 @@ class Worker(object):
                     [], [],
                     self.config.heartbeat_interval
                 )
-                if not ready[0]:
+                if not ready[0] or not self.active:
                     self.heartbeat()
 
                 self.age += 1
@@ -110,7 +111,7 @@ class Worker(object):
         )
 
     def handle_int(self, signal, frame):
-        self.alive = False
+        self.active = not self.active
 
     def handle_quit(self, signal, frame):
         self.alive = False
