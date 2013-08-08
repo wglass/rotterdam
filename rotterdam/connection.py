@@ -1,4 +1,5 @@
 import errno
+import os
 import socket
 
 from .job import Job
@@ -16,10 +17,21 @@ class Connection(object):
         self.socket = None
 
     def open(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        existing_fd = None
+        if "ROTTERDAM_SOCKET_FD" in os.environ:
+            existing_fd = int(os.environ.pop("ROTTERDAM_SOCKET_FD"))
+            self.socket = socket.fromfd(
+                existing_fd,
+                socket.AF_INET, socket.SOCK_STREAM
+            )
+        else:
+            self.socket = socket.socket(
+                socket.AF_INET, socket.SOCK_STREAM
+            )
         self.socket.setblocking(0)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind((self.host, self.port))
+        if existing_fd is None:
+            self.socket.bind((self.host, self.port))
         self.socket.listen(5)
 
     def close(self):

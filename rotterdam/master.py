@@ -209,8 +209,6 @@ class Master(object):
             self.pid_file_path + ".old." + str(self.pid)
         )
 
-        self.connection.close()
-
         self.reexec_pid = os.fork()
 
         if self.reexec_pid != 0:
@@ -220,6 +218,10 @@ class Master(object):
             setproctitle.setproctitle("rotterdam: %s" % self.name)
             self.wind_down()
             return
+
+        os.environ["ROTTERDAM_SOCKET_FD"] = str(
+            self.connection.socket.fileno()
+        )
 
         os.chdir(self.launch_context["cwd"])
 
