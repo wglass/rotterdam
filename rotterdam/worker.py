@@ -114,8 +114,10 @@ class Worker(object):
         self.active = not self.active
 
     def handle_quit(self, signal, frame):
+        self.active = False
         self.alive = False
 
     def handle_term(self, signal, frame):
+        self.active = False
         self.alive = False
         sys.exit(0)
