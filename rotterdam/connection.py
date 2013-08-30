@@ -1,4 +1,5 @@
 import errno
+import logging
 import os
 import socket
 
@@ -15,6 +16,8 @@ class Connection(object):
         self.port = port
 
         self.socket = None
+
+        self.logger = logging.getLogger(__name__)
 
     def open(self):
         existing_fd = None
@@ -38,7 +41,17 @@ class Connection(object):
         self.socket.close()
 
     def iterjobs(self):
-        conn, addr = self.socket.accept()
+        accepted = False
+
+        while not accepted:
+            try:
+                conn, addr = self.socket.accept()
+                accepted = True
+            except socket.error as e:
+                if e.errno == errno.EAGAIN:
+                    accepted = False
+
+        self.logger.debug("connection from %s:%s", addr[0], addr[1])
 
         message = ''
 

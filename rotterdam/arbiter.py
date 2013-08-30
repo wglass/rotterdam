@@ -71,7 +71,7 @@ class Arbiter(object):
             if e.errno not in [errno.EAGAIN, errno.EINTR]:
                 raise
         except IOError as e:
-            if e.errno not in [errno.EBADF]:
+            if e.errno not in [errno.EAGAIN, errno.EINTR, errno.EBADF]:
                 raise
 
     def fill_ready_queue(self):

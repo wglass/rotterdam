@@ -1,4 +1,6 @@
+import hashlib
 import json
+import types
 
 from .exceptions import NoSuchJob
 
@@ -15,6 +17,30 @@ class Job(object):
         self.kwargs = None
 
         self.call = None
+
+    def from_function(self, func, args, kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+        if isinstance(func, basestring):
+            self.module, self.function = func.split(":")
+        elif isinstance(func, types.FunctionType):
+            self.module = func.__module__,
+            self.function = func.__name__
+
+        uniqueness = hashlib.md5()
+
+        uniqueness.update(str(self.module))
+        uniqueness.update(str(self.function))
+
+        for arg in args:
+            uniqueness.update(str(arg))
+        for arg_name in sorted(kwargs.keys()):
+            uniqueness.update(
+                str(arg_name) + "=" + str(kwargs[arg_name])
+            )
+
+        self.unique_key = uniqueness.hexdigest()
 
     def serialize(self):
         return json.dumps({
