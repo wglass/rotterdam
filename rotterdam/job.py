@@ -25,7 +25,7 @@ class Job(object):
         if isinstance(func, basestring):
             self.module, self.function = func.split(":")
         elif isinstance(func, types.FunctionType):
-            self.module = func.__module__,
+            self.module = func.__module__
             self.function = func.__name__
 
         uniqueness = hashlib.md5()
