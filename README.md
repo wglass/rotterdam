@@ -136,3 +136,13 @@ INFO:rotterdam.master:Worker exiting
 processes to wrap up what they're doing and shuts itself down while the new master
 processes chugs along and accepts data on the same socket but with freshly-loaded
 python code.  Clever, eh?
+### Shutting down
+Stopping rotterdam is done via the (drumroll please)... `stop` command:
+```
+[ ~ ] $ rotterdamctl example.cfg stop
+```
+```
+INFO:rotterdam.master:Winding down master
+INFO:rotterdam.master:Worker exiting
+INFO:rotterdam.master:Worker exiting
+```
