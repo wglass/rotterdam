@@ -7,10 +7,6 @@ and with as few dependencies as possible.
 It uses [redis](http://redis.io/) as its datastore and is heavily inspired by the [unicorn](http://unicorn.bogomips.org)
 and [gunicorn](https://github.com/benoitc/gunicorn) master/worker process model.
 
-## Design
-
-
-
 ## Installation
 
 Rotterdam is available via pypi, installing is as easy as:
