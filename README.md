@@ -19,9 +19,9 @@ pip install rotterdam
 ```
 
 ## Usage
-
-Two executables are provided, `rotterdam` and `rotterdamctl`.
-
+Make sure to have a redis instance version 2.6 or newer at the location
+specified in your config file under the `arbiter` section.  See the
+example.cfg file for an example.
 
 ### Starting up
 To start rotterdam, run the `rotterdam` executable and pass in the location
