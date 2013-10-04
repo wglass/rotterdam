@@ -2,7 +2,13 @@ from setuptools import setup
 
 setup(
     name="rotterdam",
-    version="0.0.6",
+    version="0.0.7",
+    description=(
+        "Simple distributed job queue via redis."
+    ),
+    author="William Glass",
+    author_email="william.glass@gmail.com",
+    url="http://github.com/wglass/rotterdam",
     packages=["rotterdam"],
     include_package_data=True,
     package_data={
