@@ -2,8 +2,9 @@ from setuptools import setup
 
 setup(
     name="rotterdam",
-    version="0.0.5",
+    version="0.0.6",
     packages=["rotterdam"],
+    include_package_data=True,
     package_data={
         'rotterdam': ['lua/*.lua']
     },
