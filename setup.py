@@ -2,8 +2,11 @@ from setuptools import setup
 
 setup(
     name="rotterdam",
-    version="0.0.3",
+    version="0.0.5",
     packages=["rotterdam"],
+    package_data={
+        'rotterdam': ['lua/*.lua']
+    },
     scripts=[
         "bin/rotterdam",
         "bin/rotterdamctl"
@@ -11,17 +14,14 @@ setup(
     install_requires=[
         "cython==0.19.1",
         "setproctitle",
-        "gevent>=1.0rc2",
+        "gevent>=1.0dev",
         "redis==2.7.6"
     ],
     dependency_links=[
-        "http://github.com/surfly/gevent/tarball/1.0rc2#egg=gevent-1.0rc2"
+        "http://github.com/surfly/gevent/tarball/1.0rc3#egg=gevent-1.0dev"
     ],
     tests_require=[
         "mock==1.0.1",
         "nose==1.3.0"
-    ],
-    package_data={
-        "rotterdam": ["lua/*.lua"]
-    }
+    ]
 )
