@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="rotterdam",
-    version="0.0.2",
+    version="0.0.3",
     packages=["rotterdam"],
     scripts=[
         "bin/rotterdam",
@@ -15,7 +15,7 @@ setup(
         "redis==2.7.6"
     ],
     dependency_links=[
-        "http://github.com/surfly/gevent.git/tarball/1.0rc2#egg=gevent-1.0rc2"
+        "http://github.com/surfly/gevent/tarball/1.0rc2#egg=gevent-1.0rc2"
     ],
     tests_require=[
         "mock==1.0.1",
