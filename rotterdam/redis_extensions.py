@@ -24,9 +24,9 @@ def add_qadd(client):
                 queue + ":scheduled",
                 queue + ":ready",
                 queue + ":working",
-                queue + ":job_pool"
+                queue + ":jobs:pool"
             ],
-            args=[when, job_key, job_payload],
+            args=[time.time(), when, job_key, job_payload],
             client=self
         )
 
@@ -38,14 +38,14 @@ def add_qpop(client):
 
     method = client.register_script(content)
 
-    def qpop(self, queue, cutoff, start=0):
+    def qpop(self, queue, cutoff):
         return method(
             keys=[
                 queue + ":scheduled",
                 queue + ":ready",
-                queue + ":job_pool"
+                queue + ":jobs:pool"
             ],
-            args=[start, cutoff],
+            args=[time.time(), cutoff],
             client=self
         )
 
@@ -58,13 +58,16 @@ def add_qworkon(client):
     method = client.register_script(content)
 
     def qworkon(self, queue, *job_keys):
+        args = [time.time()]
+        args.extend(job_keys)
+
         return method(
             keys=[
                 queue + ":ready",
                 queue + ":working",
-                queue + ":job_pool"
+                queue + ":jobs:pool"
             ],
-            args=job_keys,
+            args=args,
             client=self
         )
 
@@ -77,13 +80,15 @@ def add_qfinish(client):
     method = client.register_script(content)
 
     def qfinish(self, queue, *job_keys):
+        args = [time.time()]
+        args.extend(job_keys)
         return method(
             keys=[
                 queue + ":working",
                 queue + ":done",
-                queue + ":job_pool"
+                queue + ":jobs:pool"
             ],
-            args=job_keys,
+            args=args,
             client=self
         )
 

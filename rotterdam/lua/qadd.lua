@@ -1,15 +1,13 @@
 local scheduled_set, ready_set, working_set, job_pool = unpack(KEYS)
-local when_to_fire, unique_key, payload = unpack(ARGV)
+local timestamp, when_to_fire, unique_key, payload = unpack(ARGV)
 
-local scheduled_time = redis.call('ZSCORE', scheduled_set, unique_key)
-if not scheduled_time == nil then
+if not redis.call("ZSCORE", scheduled_set, unique_key) == nil then
     return nil
 end
-
-if not redis.call("SISMEMBER", ready_set, unique_key) == nil then
+if not redis.call("ZSCORE", ready_set, unique_key) == nil then
     return nil
 end
-if not redis.call("SISMEMBER", working_set, unique_key) == nil then
+if not redis.call("ZSCORE", working_set, unique_key) == nil then
     return nil
 end
 
