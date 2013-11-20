@@ -1,11 +1,8 @@
 import Queue
 import time
 
-import redis
-
 from .child import Child
 from .job import Job
-from .redis_extensions import extend_redis
 
 
 class Arbiter(Child):
@@ -15,20 +12,7 @@ class Arbiter(Child):
         'results': 'handle_finished_job'
     }
 
-    def __init__(self, *args, **kwargs):
-        super(Arbiter, self).__init__(*args, **kwargs)
-
-        self.redis = None
-
     def setup(self):
-        if ":" in self.config.redis_host:
-            host, port = self.config.redis_host.split(":")
-            self.redis = redis.Redis(host=host, port=port)
-        else:
-            self.redis = redis.Redis(host=self.config.redis_host)
-
-        extend_redis(self.redis)
-
         super(Arbiter, self).setup()
 
         self.fill_ready_queue()

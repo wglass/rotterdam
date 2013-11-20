@@ -1,4 +1,3 @@
-import sys
 import time
 
 from .child import Child
@@ -15,17 +14,11 @@ class Worker(Child):
 
     age = 0
 
-    def setup(self):
-        super(Worker, self).setup()
-        self.age = 0
-
     def run_job(self, job):
         self.age += 1
 
         start_time = time.time()
-        self.outputs['taken'].put(
-            {"job": job, "time": start_time}
-        )
+        self.outputs['taken'].put({"job": job, "time": start_time})
 
         try:
             job.load()
@@ -45,12 +38,3 @@ class Worker(Child):
 
     def toggle_active(self, signal, frame):
         self.active = not self.active
-
-    def wind_down_gracefully(self, signal, frame):
-        self.active = False
-        self.alive = False
-
-    def wind_down_immediately(self, signal, frame):
-        self.active = False
-        self.alive = False
-        sys.exit(0)

@@ -6,6 +6,7 @@ import sys
 import time
 from multiprocessing import queues
 
+import redis
 import setproctitle
 
 from .config import Config
@@ -13,6 +14,7 @@ from .connection import Connection
 from .worker import Worker
 from .arbiter import Arbiter
 from .injector import Injector
+from .redis_extensions import extend_redis
 
 
 class Master(object):
@@ -44,6 +46,7 @@ class Master(object):
         self.workers = {}
 
         self.connection = None
+        self.redis = None
 
         self.ready_queue = None
         self.taken_queue = None
@@ -98,6 +101,15 @@ class Master(object):
             "Listening on port %s", self.config.master.listen_port
         )
 
+    def setup_redis(self):
+        if ":" in self.config.master.redis_host:
+            host, port = self.config.master.redis_host.split(":")
+            self.redis = redis.Redis(host=host, port=port)
+        else:
+            self.redis = redis.Redis(host=self.config.master.redis_host)
+
+        extend_redis(self.redis)
+
     def setup_signals(self):
         for signal_name, handler_name in self.signal_map.iteritems():
             signal.signal(
@@ -118,6 +130,7 @@ class Master(object):
         self.setup_pid_file()
         self.setup_ipc_queues()
         self.setup_connection()
+        self.setup_redis()
         self.setup_signals()
 
         setproctitle.setproctitle("rotterdam: %s" % self.name)
@@ -264,6 +277,7 @@ class Master(object):
     def spawn_injector(self):
         injector = Injector(
             self.config.master,
+            self.redis,
             sources={
                 "connection": self.connection
             }
@@ -293,6 +307,7 @@ class Master(object):
     def spawn_arbiter(self):
         arbiter = Arbiter(
             self.config.master,
+            self.redis,
             sources={
                 "taken": self.taken_queue,
                 "results": self.results_queue
@@ -326,6 +341,7 @@ class Master(object):
     def spawn_worker(self):
         worker = Worker(
             self.config.master,
+            self.redis,
             sources={
                 'ready': self.ready_queue
             },

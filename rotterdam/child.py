@@ -19,8 +19,9 @@ class Child(object):
     signal_map = {}
     source_handlers = {}
 
-    def __init__(self, config, sources=None, outputs=None):
+    def __init__(self, config, redis, sources=None, outputs=None):
         self.config = config
+        self.redis = redis
         if not sources:
             sources = {}
         if not outputs:
