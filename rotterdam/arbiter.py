@@ -40,7 +40,7 @@ class Arbiter(Child):
     def fill_ready_queue(self):
         while True:
             try:
-                payloads = self.redis.qget("rotterdam", int(time.time()))
+                payloads = self.redis.qpop("rotterdam", int(time.time()))
 
                 if not payloads:
                     break
@@ -51,12 +51,6 @@ class Arbiter(Child):
                     self.logger.debug(
                         "Queueing job: %s", job
                     )
-                    self.redis.qsetstate(
-                        "rotterdam",
-                        "schedule",
-                        "ready",
-                        job.unique_key
-                    )
                     self.outputs['ready'].put_nowait(job)
             except Queue.Full:
                 break
@@ -64,10 +58,8 @@ class Arbiter(Child):
     def handle_taken_job(self, taken):
         self.logger.debug("Job started %s", taken["job"])
 
-        self.redis.qsetstate(
+        self.redis.qworkon(
             "rotterdam",
-            "ready",
-            "working",
             taken["job"].unique_key
         )
 
@@ -77,9 +69,7 @@ class Arbiter(Child):
             result["time"]
         )
 
-        self.redis.qsetstate(
+        self.redis.qfinish(
             "rotterdam",
-            "working",
-            "done",
             result["job"].unique_key
         )

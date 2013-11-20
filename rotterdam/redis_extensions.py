@@ -21,7 +21,8 @@ def add_qadd(client):
     def qadd(self, queue, when, job_key, job_payload):
         return method(
             keys=[
-                queue + ":schedule",
+                queue + ":scheduled",
+                queue + ":ready",
                 queue + ":working",
                 queue + ":job_pool"
             ],
@@ -32,49 +33,68 @@ def add_qadd(client):
     client.qadd = types.MethodType(qadd, client)
 
 
-def add_qget(client):
-    content = get_script_content("qget")
+def add_qpop(client):
+    content = get_script_content("qpop")
 
     method = client.register_script(content)
 
-    def qget(self, queue, cutoff, start=0):
+    def qpop(self, queue, cutoff, start=0):
         return method(
             keys=[
-                queue + ":schedule",
+                queue + ":scheduled",
+                queue + ":ready",
                 queue + ":job_pool"
             ],
             args=[start, cutoff],
             client=self
         )
 
-    client.qget = types.MethodType(qget, client)
+    client.qpop = types.MethodType(qpop, client)
 
 
-def add_qsetstate(client):
-    content = get_script_content("qsetstate")
+def add_qworkon(client):
+    content = get_script_content("qworkon")
 
     method = client.register_script(content)
 
-    def qsetstate(self, queue, current, target, *job_keys):
-        args = [time.time()]
-        args.extend(job_keys)
-
+    def qworkon(self, queue, *job_keys):
         return method(
             keys=[
-                queue + ":" + current,
-                queue + ":" + target
+                queue + ":ready",
+                queue + ":working",
+                queue + ":job_pool"
             ],
-            args=args,
+            args=job_keys,
             client=self
         )
 
-    client.qsetstate = types.MethodType(qsetstate, client)
+    client.qworkon = types.MethodType(qworkon, client)
+
+
+def add_qfinish(client):
+    content = get_script_content("qfinish")
+
+    method = client.register_script(content)
+
+    def qfinish(self, queue, *job_keys):
+        return method(
+            keys=[
+                queue + ":working",
+                queue + ":done",
+                queue + ":job_pool"
+            ],
+            args=job_keys,
+            client=self
+        )
+
+    client.qfinish = types.MethodType(qfinish, client)
 
 
 def extend_redis(client):
     add_qadd(client)
-    add_qget(client)
-    add_qsetstate(client)
+    add_qpop(client)
+    add_qworkon(client)
+    add_qfinish(client)
 
 
 __all__ = [extend_redis]
