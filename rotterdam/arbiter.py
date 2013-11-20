@@ -48,28 +48,15 @@ class Arbiter(Child):
                 for payload in payloads:
                     job = Job()
                     job.deserialize(payload)
-                    self.logger.debug(
-                        "Queueing job: %s", job
-                    )
+                    self.logger.debug("Queueing job: %s", job)
                     self.outputs['ready'].put_nowait(job)
             except Queue.Full:
                 break
 
     def handle_taken_job(self, taken):
         self.logger.debug("Job started %s", taken["job"])
-
-        self.redis.qworkon(
-            "rotterdam",
-            taken["job"].unique_key
-        )
+        self.redis.qworkon("rotterdam", taken["job"].unique_key)
 
     def handle_finished_job(self, result):
-        self.logger.debug(
-            "Job completed in %0.2fs seconds",
-            result["time"]
-        )
-
-        self.redis.qfinish(
-            "rotterdam",
-            result["job"].unique_key
-        )
+        self.logger.debug("Job completed in %0.2fs seconds", result["time"])
+        self.redis.qfinish("rotterdam", result["job"].unique_key)
