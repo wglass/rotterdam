@@ -1,94 +1,30 @@
-import errno
-import logging
-import os
-import Queue
-import signal
 import sys
 import time
 
-from gevent import pool, monkey, select
+from .child import Child
 
 
-class Worker(object):
+class Worker(Child):
 
-    understood_signals = ["QUIT", "TERM", "INT"]
+    signal_map = {
+        "int": "toggle_active"
+    }
+    source_handlers = {
+        "ready": "run_job"
+    }
 
-    def __init__(self, in_queue, taken_queue, out_queue, config):
-        self.in_queue = in_queue
-        self.taken_queue = taken_queue
-        self.out_queue = out_queue
-        self.config = config
-
-        self.alive = True
-        self.active = True
-        self.age = 0
-
-        self.smtp_pool = None
-
-        self.logger = logging.getLogger(__name__)
+    age = 0
 
     def setup(self):
-        self.pid = os.getpid()
-        self.parent_pid = os.getppid()
-        self.setup_signals()
+        super(Worker, self).setup()
+        self.age = 0
 
-    def setup_signals(self):
+    def run_job(self, job):
+        self.age += 1
 
-        for signal_name in self.understood_signals:
-            signal.signal(
-                getattr(signal, "SIG%s" % signal_name),
-                getattr(self, "handle_%s" % signal_name.lower())
-            )
-
-    def run(self):
-        monkey.patch_all(thread=False)
-
-        greenlet_pool = pool.Pool(self.config.greenlet_pool_size)
-
-        while self.alive:
-            try:
-                ready = select.select(
-                    [self.in_queue._reader],
-                    [], [],
-                    self.config.heartbeat_interval
-                )
-                if not ready[0] or not self.active:
-                    self.heartbeat()
-
-                self.age += 1
-                job = self.in_queue.get_nowait()
-                greenlet_pool.spawn(
-                    self.handle_job, job
-                )
-
-            except Queue.Empty:
-                continue
-            except select.error as error:
-                if error.args[0] not in [errno.EAGAIN, errno.EINTR]:
-                    raise
-            except OSError as e:
-                if e.errno not in [errno.EAGAIN, errno.EINTR]:
-                    raise
-            except SystemExit:
-                raise
-            except Exception as e:
-                self.logger.exception(e)
-                sys.exit(-1)
-
-        greenlet_pool.join(raise_error=True)
-
-    def heartbeat(self):
-        if self.pid == os.getpid() and self.parent_pid != os.getppid():
-            self.logger.info("Parent process changed! shutting down.")
-            self.alive = False
-
-    def handle_job(self, job):
         start_time = time.time()
-        self.taken_queue.put(
-            {
-                "time": start_time,
-                "job": job
-            }
+        self.outputs['taken'].put(
+            {"job": job, "time": start_time}
         )
 
         try:
@@ -103,21 +39,18 @@ class Worker(object):
 
         end_time = time.time()
 
-        self.out_queue.put(
-            {
-                "time": end_time - start_time,
-                "job": job
-            }
+        self.outputs['results'].put(
+            {"job": job, "time": end_time - start_time}
         )
 
-    def handle_int(self, signal, frame):
+    def toggle_active(self, signal, frame):
         self.active = not self.active
 
-    def handle_quit(self, signal, frame):
+    def wind_down_gracefully(self, signal, frame):
         self.active = False
         self.alive = False
 
-    def handle_term(self, signal, frame):
+    def wind_down_immediately(self, signal, frame):
         self.active = False
         self.alive = False
         sys.exit(0)

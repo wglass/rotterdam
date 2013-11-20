@@ -12,6 +12,7 @@ from .config import Config
 from .connection import Connection
 from .worker import Worker
 from .arbiter import Arbiter
+from .injector import Injector
 
 
 class Master(object):
@@ -38,6 +39,8 @@ class Master(object):
 
         self.config_file = config_file
 
+        self.injectors = {}
+        self.arbiters = {}
         self.workers = {}
 
         self.connection = None
@@ -103,11 +106,7 @@ class Master(object):
             )
 
     def setup_ipc_queues(self):
-        self.ready_queue = queues.Queue(
-            maxsize=(
-                self.number_of_workers * self.config.workers.greenlet_pool_size
-            )
-        )
+        self.ready_queue = queues.Queue(maxsize=None)
         self.taken_queue = queues.Queue()
         self.results_queue = queues.Queue()
 
@@ -123,31 +122,22 @@ class Master(object):
 
         setproctitle.setproctitle("rotterdam: %s" % self.name)
 
+        self.spawn_injector()
+        self.spawn_arbiter()
+
         for i in range(self.number_of_workers):
             self.spawn_worker()
 
-        arbiter = Arbiter(
-            self.config.arbiter,
-            self.connection,
-            self.ready_queue,
-            self.taken_queue,
-            self.results_queue
-        )
-
-        arbiter.setup()
-
         while True:
             try:
-                arbiter.arbitrate(
-                    timeout=self.config.master.heartbeat_interval
-                )
-                self.heartbeat()
-            except SystemExit:
-                raise
+                signal.pause()
             except KeyboardInterrupt:
                 self.wind_down_gracefully()
-            except Exception, e:
-                self.logger.exception(e)
+            except SystemExit:
+                raise
+            except Exception:
+                self.logger.exception("Error during main loop!")
+                self.wind_down_immediately()
                 sys.exit(-1)
 
     def expand_workers(self, *args):
@@ -170,6 +160,11 @@ class Master(object):
         self.logger.info(
             "Contracting number of workers to %d",
             self.number_of_workers
+        )
+        self.ready_queue = queues.Queue(
+            maxsize=(
+                self.number_of_workers * self.config.master.greenlet_pool_size
+            )
         )
 
         # get the pid of the oldest worker by
@@ -266,12 +261,78 @@ class Master(object):
         self.connection.close()
         self.wind_down(signal_to_broadcast=signal.SIGTERM)
 
+    def spawn_injector(self):
+        injector = Injector(
+            self.config.master,
+            sources={
+                "connection": self.connection
+            }
+        )
+
+        pid = os.fork()
+
+        if pid != 0:
+            self.injectors[pid] = injector
+            return
+
+        # in the injector process now
+        try:
+            setproctitle.setproctitle("rotterdam: injector")
+            self.logger.info("Starting up injector")
+            injector.setup()
+            injector.run()
+            sys.exit(0)
+        except SystemExit:
+            raise
+        except:
+            self.logger.exception("Exception in injector process!")
+            sys.exit(-1)
+        finally:
+            self.logger.info("Injector exiting")
+
+    def spawn_arbiter(self):
+        arbiter = Arbiter(
+            self.config.master,
+            sources={
+                "taken": self.taken_queue,
+                "results": self.results_queue
+            },
+            outputs={
+                "ready": self.ready_queue
+            }
+        )
+
+        pid = os.fork()
+
+        if pid != 0:
+            self.arbiters[pid] = arbiter
+            return
+
+        # in the arbiter process now
+        try:
+            setproctitle.setproctitle("rotterdam: arbiter")
+            self.logger.info("Starting up arbiter")
+            arbiter.setup()
+            arbiter.run()
+            sys.exit(0)
+        except SystemExit:
+            raise
+        except:
+            self.logger.exception("Exception in arbiter process!")
+            sys.exit(-1)
+        finally:
+            self.logger.info("Arbiter exiting")
+
     def spawn_worker(self):
         worker = Worker(
-            self.ready_queue,
-            self.taken_queue,
-            self.results_queue,
-            self.config.workers
+            self.config.master,
+            sources={
+                'ready': self.ready_queue
+            },
+            outputs={
+                'taken': self.taken_queue,
+                'results': self.results_queue
+            }
         )
 
         pid = os.fork()
@@ -306,13 +367,13 @@ class Master(object):
         for worker_pid in self.workers.keys():
             self.send_signal(signal, worker_pid)
 
-    def send_signal(self, signal, worker_pid):
+    def send_signal(self, signal, child_pid):
         try:
-            os.kill(worker_pid, signal)
+            os.kill(child_pid, signal)
         except OSError as error:
             if error.errno == errno.ESRCH:
                 try:
-                    self.workers.pop(worker_pid)
+                    self.workers.pop(child_pid)
                 except KeyError:
                     return
             raise
