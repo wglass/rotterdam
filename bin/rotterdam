@@ -22,4 +22,6 @@ if args.debug:
 else:
     logging.basicConfig(level=logging.INFO)
 
-Boss(args.config_file).run()
+boss = Boss(args.config_file)
+boss.setup()
+boss.run()

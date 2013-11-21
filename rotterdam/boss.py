@@ -1,5 +1,4 @@
 import errno
-import logging
 import os
 import signal
 import sys
@@ -11,13 +10,14 @@ import setproctitle
 
 from .config import Config
 from .connection import Connection
+from .proc import Proc
 from .loader import Loader
 from .unloader import Unloader
 from .arbiter import Arbiter
 from .redis_extensions import extend_redis
 
 
-class Boss(object):
+class Boss(Proc):
 
     signal_map = {
         "hup": "reload_config",
@@ -31,13 +31,10 @@ class Boss(object):
     }
 
     def __init__(self, config_file):
-        self.pid = None
+        super(Boss, self).__init__()
+
         self.pid_file_path = None
         self.reexec_pid = 0
-
-        self.name = "boss"
-
-        self.logger = logging.getLogger(__name__)
 
         self.config_file = config_file
 
@@ -110,30 +107,21 @@ class Boss(object):
 
         extend_redis(self.redis)
 
-    def setup_signals(self):
-        for signal_name, handler_name in self.signal_map.iteritems():
-            signal.signal(
-                getattr(signal, "SIG%s" % signal_name.upper()),
-                getattr(self, handler_name)
-            )
-
     def setup_ipc_queues(self):
         self.ready_queue = queues.Queue(maxsize=None)
         self.taken_queue = queues.Queue()
         self.results_queue = queues.Queue()
 
-    def run(self):
-        self.pid = os.getpid()
-        self.logger.info("Starting %s (%d)", self.name, int(self.pid))
-
+    def setup(self):
+        super(Boss, self).setup()
         self.load_config()
         self.setup_pid_file()
         self.setup_ipc_queues()
         self.setup_connection()
         self.setup_redis()
-        self.setup_signals()
 
-        setproctitle.setproctitle("rotterdam: %s" % self.name)
+    def run(self):
+        super(Boss, self).run()
 
         self.spawn_worker(Loader, sources={"connection": self.connection})
         self.spawn_worker(
@@ -254,9 +242,8 @@ class Boss(object):
 
         if self.reexec_pid != 0:
             # old boss proc
-            self.name = "old boss"
             self.pid_file_path += ".old." + str(self.pid)
-            setproctitle.setproctitle("rotterdam: %s" % self.name)
+            setproctitle.setproctitle("rotterdam: old %s" % self.name)
             self.wind_down()
             return
 
@@ -308,32 +295,30 @@ class Boss(object):
         self.wind_down(signal_to_broadcast=signal.SIGTERM)
 
     def spawn_worker(self, worker_class, sources=None, outputs=None):
-        name = worker_class.__name__.lower()
-
         worker = worker_class(self.config.master, self.redis, sources, outputs)
 
         pid = os.fork()
 
         if pid != 0:
-            getattr(self, name + "s")[pid] = worker
+            getattr(self, worker.name + "s")[pid] = worker
             return
 
         try:
-            setproctitle.setproctitle("rotterdam: %s" % name)
-            self.logger.info("Starting up %s" % name)
             worker.setup()
             worker.run()
             sys.exit(0)
         except SystemExit:
             raise
         except:
-            self.logger.exception("Unhandled exception in %s process!" % name)
+            self.logger.exception(
+                "Unhandled exception in %s process!" % worker.name
+            )
             sys.exit(-1)
         finally:
-            self.logger.info("%s exiting" % name)
+            self.logger.info("%s exiting" % worker.name)
 
     def wind_down(self, signal_to_broadcast=signal.SIGQUIT):
-        self.logger.info("Winding down %s", self.name)
+        self.logger.info("Winding down")
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )

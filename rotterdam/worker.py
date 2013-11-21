@@ -1,25 +1,25 @@
 import errno
-import logging
 import os
 import Queue
-import signal
 import sys
 
 from gevent import pool, monkey, select
 
+from .proc import Proc
 
-class Worker(object):
+
+class Worker(Proc):
 
     default_signal_map = {
         "int": "toggle_active",
         "quit": "wind_down_gracefully",
         "term": "wind_down_immediately"
     }
-
-    signal_map = {}
     source_handlers = {}
 
     def __init__(self, config, redis, sources=None, outputs=None):
+        super(Worker, self).__init__()
+
         self.config = config
         self.redis = redis
         if not sources:
@@ -43,24 +43,15 @@ class Worker(object):
         self.alive = True
         self.active = True
 
-        self.logger = logging.getLogger(self.__module__)
-
     def setup(self):
-        self.pid = os.getpid()
-        self.parent_pid = os.getppid()
-        self.setup_signals()
+        super(Worker, self).setup()
 
         monkey.patch_all(thread=False)
         self.greenlet_pool = pool.Pool(self.config.greenlet_pool_size)
 
-    def setup_signals(self):
-        for signal_name, handler_name in self.signal_map.iteritems():
-            signal.signal(
-                getattr(signal, "SIG%s" % signal_name.upper()),
-                getattr(self, handler_name)
-            )
-
     def run(self):
+        super(Worker, self).run()
+
         while self.alive:
             try:
                 (sources_with_data, [], []) = select.select(
@@ -118,7 +109,7 @@ class Worker(object):
 
     def heartbeat(self):
         if self.pid == os.getpid() and self.parent_pid != os.getppid():
-            self.logger.info("Parent process changed! shutting down.")
+            self.logger.info("Parent process changed! winding down.")
             self.alive = False
 
 
