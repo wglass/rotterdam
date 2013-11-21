@@ -38,14 +38,14 @@ def add_qpop(client):
 
     method = client.register_script(content)
 
-    def qpop(self, queue, cutoff):
+    def qpop(self, queue, cutoff, maxitems):
         return method(
             keys=[
                 queue + ":scheduled",
                 queue + ":ready",
                 queue + ":jobs:pool"
             ],
-            args=[time.time(), cutoff],
+            args=[time.time(), cutoff, maxitems],
             client=self
         )
 

@@ -7,6 +7,10 @@ from .job import Job
 
 class Arbiter(Child):
 
+    signal_map = {
+        "ttin": "expand_capacity",
+        "ttou": "contract_capacity"
+    }
     source_handlers = {
         'taken': 'handle_taken_job',
         'results': 'handle_finished_job'
@@ -14,6 +18,9 @@ class Arbiter(Child):
 
     def setup(self):
         super(Arbiter, self).setup()
+        self.capacity = (
+            self.config.num_workers * self.config.greenlet_pool_size
+        )
 
         self.fill_ready_queue()
 
@@ -22,25 +29,34 @@ class Arbiter(Child):
         self.fill_ready_queue()
 
     def fill_ready_queue(self):
-        while True:
-            try:
-                payloads = self.redis.qpop("rotterdam", int(time.time()))
+            payloads = self.redis.qpop(
+                "rotterdam",
+                int(time.time()), self.capacity
+            )
 
-                if not payloads:
-                    break
-
-                for payload in payloads:
-                    job = Job()
-                    job.deserialize(payload)
-                    self.logger.debug("Queueing job: %s", job)
+            for payload in payloads:
+                job = Job()
+                job.deserialize(payload)
+                try:
                     self.outputs['ready'].put_nowait(job)
-            except Queue.Full:
-                break
+                    self.capacity -= 1
+                    self.logger.debug("Queued job: %s", job)
+                except Queue.Full:
+                    break
 
     def handle_taken_job(self, taken):
         self.logger.debug("Job started %s", taken["job"])
         self.redis.qworkon("rotterdam", taken["job"].unique_key)
 
     def handle_finished_job(self, result):
+        self.capacity += 1
         self.logger.debug("Job completed in %0.2fs seconds", result["time"])
         self.redis.qfinish("rotterdam", result["job"].unique_key)
+
+    def expand_capacity(self, *args):
+        self.capacity += self.config.greenlet_pool_size
+        self.logger.debug("capacity set to %d", self.capacity)
+
+    def contract_capacity(self, *args):
+        self.capacity -= self.config.greenlet_pool_size
+        self.logger.debug("capacity set to %d", self.capacity)
