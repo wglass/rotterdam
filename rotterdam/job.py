@@ -2,7 +2,7 @@ import hashlib
 import json
 import types
 
-from .exceptions import NoSuchJob
+from .exceptions import NoSuchJob, InvalidJobPayload
 
 
 class Job(object):
@@ -53,7 +53,10 @@ class Job(object):
         })
 
     def deserialize(self, payload):
-        payload = json.loads(payload)
+        try:
+            payload = json.loads(payload)
+        except ValueError:
+            raise InvalidJobPayload
 
         for attribute in [
             'when', 'unique_key', 'module', 'function', 'args', 'kwargs'
@@ -63,8 +66,11 @@ class Job(object):
     def load(self):
         try:
             module = __import__(self.module, fromlist=self.function)
-            self.call = getattr(module, self.function)
         except ImportError:
+            raise NoSuchJob
+        try:
+            self.call = getattr(module, self.function)
+        except AttributeError:
             raise NoSuchJob
 
     def run(self):

@@ -8,3 +8,11 @@ class NoSuchJob(RotterdamError):
 
 class ConnectionError(RotterdamError):
     pass
+
+
+class InvalidJobPayload(RotterdamError):
+    pass
+
+
+class JobEnqueueError(RotterdamError):
+    pass

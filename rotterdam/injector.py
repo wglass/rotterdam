@@ -1,5 +1,4 @@
 from .worker import Worker
-from .exceptions import NoSuchJob
 
 
 class Injector(Worker):
@@ -11,10 +10,6 @@ class Injector(Worker):
     def handle_incoming_jobs(self):
         for job in self.sources['connection']:
             self.logger.debug("got job: %s", job)
-            try:
-                job.load()
-            except NoSuchJob:
-                continue
 
             self.redis.qadd(
                 "rotterdam",

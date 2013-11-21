@@ -1,9 +1,11 @@
 import errno
+import json
 import logging
 import os
 import socket
 
 from .job import Job
+from .exceptions import NoSuchJob, InvalidJobPayload
 
 
 SOCKET_BUFFER_SIZE = 4096
@@ -71,9 +73,23 @@ class Connection(object):
                 message, extra = message.split("\n", 1)
 
             job = Job()
-            job.deserialize(message)
+            try:
+                job.deserialize(message)
+                job.load()
+            except InvalidJobPayload:
+                response = {"status": "error", "message": "invalid payload"}
+            except NoSuchJob:
+                response = {"status": "error", "message": "no such job"}
+            except Exception as e:
+                self.logger.exception("Unhandled exception when loading job")
+                response = {"status": "error", "message": str(e)}
+            else:
+                response = {"status": "ok"}
 
-            yield job
+            conn.sendall(json.dumps(response) + "\n")
+
+            if response['status'] == "ok":
+                yield job
 
             message = extra
 

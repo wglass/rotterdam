@@ -1,8 +1,12 @@
+import errno
+import json
 import logging
 import socket
 import time
 
-from .exceptions import ConnectionError
+from .exceptions import (
+    InvalidJobPayload, NoSuchJob, ConnectionError, JobEnqueueError
+)
 from .job import Job
 
 SOCKET_BUFFER_SIZE = 4096
@@ -50,8 +54,32 @@ class Client(object):
                     e.args[1] if len(e.args) > 1 else e.args[0]
                 )
             )
-        finally:
             self.disconnect()
+
+        response = ''
+        while True:
+            try:
+                chunk = self.socket.recv(SOCKET_BUFFER_SIZE)
+                if chunk:
+                    response = response + chunk
+            except socket.error as e:
+                if e.errno not in [errno.EAGAIN, errno.EINTR]:
+                    raise
+
+            if not response or "\n" in response:
+                break
+
+        response = json.loads(response)
+
+        if response['status'] != "ok":
+            if response["message"] == "no such job":
+                raise NoSuchJob
+            elif response["message"] == "invalid payload":
+                raise InvalidJobPayload
+            else:
+                raise JobEnqueueError(response["message"])
+
+        self.disconnect()
 
     def disconnect(self):
         try:
