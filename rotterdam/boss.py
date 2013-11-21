@@ -11,23 +11,23 @@ import setproctitle
 
 from .config import Config
 from .connection import Connection
-from .worker import Worker
+from .loader import Loader
+from .unloader import Unloader
 from .arbiter import Arbiter
-from .injector import Injector
 from .redis_extensions import extend_redis
 
 
-class Master(object):
+class Boss(object):
 
     signal_map = {
         "hup": "reload_config",
         "usr1": "relaunch",
-        "ttin": "expand_workers",
-        "ttou": "contract_workers",
+        "ttin": "expand_unloaders",
+        "ttou": "contract_unloaders",
         "int": "halt_current_jobs",
         "quit": "wind_down_gracefully",
         "term": "wind_down_immediately",
-        "chld": "handle_child_exit"
+        "chld": "handle_worker_exit"
     }
 
     def __init__(self, config_file):
@@ -35,15 +35,15 @@ class Master(object):
         self.pid_file_path = None
         self.reexec_pid = 0
 
-        self.name = "master"
+        self.name = "boss"
 
         self.logger = logging.getLogger(__name__)
 
         self.config_file = config_file
 
-        self.injectors = {}
+        self.loaders = {}
         self.arbiters = {}
-        self.workers = {}
+        self.unloaders = {}
 
         self.connection = None
         self.redis = None
@@ -67,7 +67,7 @@ class Master(object):
         self.config = Config(self.config_file)
         self.config.load()
         self.pid_file_path = self.config.master.pid_file
-        self.number_of_workers = self.config.master.num_workers
+        self.number_of_unloaders = self.config.master.num_unloaders
 
     def setup_pid_file(self):
         if not os.path.isdir(os.path.dirname(self.pid_file_path)):
@@ -79,7 +79,7 @@ class Master(object):
             raise RuntimeError(
                 (
                     "pid file (%s) already exists! \n"
-                    "If no master is running it could be stale."
+                    "If no boss process is running it could be stale."
                 ) % self.pid_file_path
             )
 
@@ -135,8 +135,8 @@ class Master(object):
 
         setproctitle.setproctitle("rotterdam: %s" % self.name)
 
-        self.spawn_child(Injector, sources={"connection": self.connection})
-        self.spawn_child(
+        self.spawn_worker(Loader, sources={"connection": self.connection})
+        self.spawn_worker(
             Arbiter,
             sources={
                 "taken": self.taken_queue,
@@ -146,9 +146,9 @@ class Master(object):
                 "ready": self.ready_queue
             }
         )
-        for i in range(self.number_of_workers):
-            self.spawn_child(
-                Worker,
+        for i in range(self.number_of_unloaders):
+            self.spawn_worker(
+                Unloader,
                 sources={
                     'ready': self.ready_queue
                 },
@@ -170,14 +170,14 @@ class Master(object):
                 self.wind_down_immediately()
                 sys.exit(-1)
 
-    def expand_workers(self, expansion_signal, *args):
-        self.number_of_workers += 1
+    def expand_unloaders(self, expansion_signal, *args):
+        self.number_of_unloaders += 1
         self.logger.info(
-            "Upping number of workers to %d",
-            self.number_of_workers
+            "Upping number of unloaders to %d",
+            self.number_of_unloaders
         )
-        self.spawn_child(
-            Worker,
+        self.spawn_worker(
+            Unloader,
                 sources={
                     'ready': self.ready_queue
                 },
@@ -186,39 +186,39 @@ class Master(object):
                     'results': self.results_queue
                 }
         )
-        self.broadcast_signal(expansion_signal, child_class=Arbiter)
+        self.broadcast_signal(expansion_signal, worker_class=Arbiter)
 
-    def contract_workers(self, contraction_signal, *args):
-        if self.number_of_workers <= 1:
+    def contract_unloaders(self, contraction_signal, *args):
+        if self.number_of_unloaders <= 1:
             self.logger.info(
-                "Ignoring TTOU, number of workers already at %d",
-                self.number_of_workers
+                "Ignoring TTOU, number of unloaders already at %d",
+                self.number_of_unloaders
             )
             return
 
-        self.number_of_workers -= 1
+        self.number_of_unloaders -= 1
         self.logger.info(
-            "Contracting number of workers to %d",
-            self.number_of_workers
+            "Contracting number of unloaders to %d",
+            self.number_of_unloaders
         )
 
-        self.broadcast_signal(contraction_signal, child_class=Arbiter)
+        self.broadcast_signal(contraction_signal, worker_class=Arbiter)
 
-        # get the pid of the oldest worker by
+        # get the pid of the oldest unloader by
         # sorting by age and popping the first one
-        oldest_worker_pid, _ = sorted(
-            self.workers.items(),
+        oldest_unloader_pid, _ = sorted(
+            self.unloaders.items(),
             key=lambda i: i[1].age
         ).pop(0)
 
-        self.send_signal(signal.SIGQUIT, oldest_worker_pid)
+        self.send_signal(signal.SIGQUIT, oldest_unloader_pid)
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
         old_port = self.config.master.listen_port
 
-        workers_by_age = sorted(
-            self.workers.items(),
+        unloaders_by_age = sorted(
+            self.unloaders.items(),
             key=lambda i: i[1].age
         )
 
@@ -228,9 +228,9 @@ class Master(object):
             self.connection.close()
             self.setup_connection()
 
-        for i in range(self.number_of_workers):
-            self.spawn_child(
-                Worker,
+        for i in range(self.number_of_unloaders):
+            self.spawn_worker(
+                Unloader,
                 sources={
                     'ready': self.ready_queue
                 },
@@ -240,9 +240,9 @@ class Master(object):
                 }
             )
 
-        while len(workers_by_age) > 0:
-            (worker_pid, _) = workers_by_age.pop(0)
-            self.send_signal(signal.SIGQUIT, worker_pid)
+        while len(unloaders_by_age) > 0:
+            (unloader_pid, _) = unloaders_by_age.pop(0)
+            self.send_signal(signal.SIGQUIT, unloader_pid)
 
     def relaunch(self, *args):
         os.rename(
@@ -253,8 +253,8 @@ class Master(object):
         self.reexec_pid = os.fork()
 
         if self.reexec_pid != 0:
-            # old master proc
-            self.name = "old master"
+            # old boss proc
+            self.name = "old boss"
             self.pid_file_path += ".old." + str(self.pid)
             setproctitle.setproctitle("rotterdam: %s" % self.name)
             self.wind_down()
@@ -272,20 +272,20 @@ class Master(object):
             os.environ
         )
 
-    def handle_child_exit(self, *args):
-        for child_xref in [self.workers, self.injectors, self.arbiters]:
-            for child_pid in child_xref.keys():
+    def handle_worker_exit(self, *args):
+        for worker_xref in [self.loaders, self.unloaders, self.arbiters]:
+            for worker_pid in worker_xref.keys():
                 try:
-                    pid, status = os.waitpid(child_pid, os.WNOHANG)
-                    if pid == child_pid:
-                        child_xref.pop(child_pid)
+                    pid, status = os.waitpid(worker_pid, os.WNOHANG)
+                    if pid == worker_pid:
+                        worker_xref.pop(worker_pid)
                 except OSError as e:
                     if e.errno == errno.ECHILD:
-                        child_xref.pop(child_pid)
+                        worker_xref.pop(worker_pid)
                     raise
 
         if self.wind_down_time:
-            if not any([self.workers, self.injectors, self.arbiters]):
+            if not any([self.loaders, self.unloaders, self.arbiters]):
                 try:
                     os.unlink(self.pid_file_path)
                 except OSError as e:
@@ -297,7 +297,7 @@ class Master(object):
                 self.broadcast_signal(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
-        self.broadcast_signal(signal.SIGINT, child_class=Worker)
+        self.broadcast_signal(signal.SIGINT, worker_class=Unloader)
 
     def wind_down_gracefully(self, *args):
         self.connection.close()
@@ -307,22 +307,22 @@ class Master(object):
         self.connection.close()
         self.wind_down(signal_to_broadcast=signal.SIGTERM)
 
-    def spawn_child(self, child_class, sources=None, outputs=None):
-        name = child_class.__name__.lower()
+    def spawn_worker(self, worker_class, sources=None, outputs=None):
+        name = worker_class.__name__.lower()
 
-        child = child_class(self.config.master, self.redis, sources, outputs)
+        worker = worker_class(self.config.master, self.redis, sources, outputs)
 
         pid = os.fork()
 
         if pid != 0:
-            getattr(self, name + "s")[pid] = child
+            getattr(self, name + "s")[pid] = worker
             return
 
         try:
             setproctitle.setproctitle("rotterdam: %s" % name)
             self.logger.info("Starting up %s" % name)
-            child.setup()
-            child.run()
+            worker.setup()
+            worker.run()
             sys.exit(0)
         except SystemExit:
             raise
@@ -339,28 +339,30 @@ class Master(object):
         )
         self.broadcast_signal(signal_to_broadcast)
 
-    def broadcast_signal(self, signal, child_class=None):
-        if not child_class:
-            child_pids = (
-                self.workers.keys()
+    def broadcast_signal(self, signal, worker_class=None):
+        if not worker_class:
+            worker_pids = (
+                self.loaders.keys()
+                + self.unloaders.keys()
                 + self.arbiters.keys()
-                + self.injectors.keys()
             )
         else:
-            name = child_class.__name__.lower()
-            child_pids = getattr(self, name + "s").keys()
+            name = worker_class.__name__.lower()
+            worker_pids = getattr(self, name + "s").keys()
 
-        for child_pid in child_pids:
-            self.send_signal(signal, child_pid)
+        for worker_pid in worker_pids:
+            self.send_signal(signal, worker_pid)
 
-    def send_signal(self, signal, child_pid):
+    def send_signal(self, signal, worker_pid):
         try:
-            os.kill(child_pid, signal)
+            os.kill(worker_pid, signal)
         except OSError as error:
             if error.errno == errno.ESRCH:
-                for child_xref in [self.workers, self.arbiters, self.injectors]:
+                for worker_xref in [
+                        self.loaders, self.arbiters, self.unloaders
+                ]:
                     try:
-                        self.child_xref.pop(child_pid)
+                        self.worker_xref.pop(worker_pid)
                     except KeyError:
                         return
             raise

@@ -1,11 +1,11 @@
 import Queue
 import time
 
-from .child import Child
+from .worker import Worker
 from .job import Job
 
 
-class Arbiter(Child):
+class Arbiter(Worker):
 
     signal_map = {
         "ttin": "expand_capacity",
@@ -19,7 +19,7 @@ class Arbiter(Child):
     def setup(self):
         super(Arbiter, self).setup()
         self.capacity = (
-            self.config.num_workers * self.config.greenlet_pool_size
+            self.config.num_unloaders * self.config.greenlet_pool_size
         )
 
         self.fill_ready_queue()

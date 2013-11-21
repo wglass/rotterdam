@@ -1,8 +1,8 @@
-from .child import Child
+from .worker import Worker
 from .exceptions import NoSuchJob
 
 
-class Injector(Child):
+class Loader(Worker):
 
     source_handlers = {
         "connection": "handle_incoming_jobs"
