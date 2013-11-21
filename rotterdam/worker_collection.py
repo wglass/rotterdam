@@ -77,7 +77,7 @@ class WorkerCollection(object):
                     exited_worker_pids.append(worker_pid)
             except OSError as e:
                 if e.errno == errno.ECHILD:
-                    self.pop(worker_pid)
+                    self.workers.pop(worker_pid)
                 raise
 
         for worker_pid in exited_worker_pids:
