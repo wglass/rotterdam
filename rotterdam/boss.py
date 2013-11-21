@@ -87,9 +87,7 @@ class Boss(Proc):
             fd.close()
 
     def setup_connection(self):
-        self.connection = Connection(
-            port=self.config.master.listen_port
-        )
+        self.connection = Connection(port=self.config.master.listen_port)
         self.connection.open()
         self.logger.info(
             "Listening on port %s", self.config.master.listen_port
