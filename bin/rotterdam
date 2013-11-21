@@ -22,6 +22,4 @@ if args.debug:
 else:
     logging.basicConfig(level=logging.INFO)
 
-master = Master(args.config_file)
-master.setup()
-master.run()
+Master(args.config_file).run()

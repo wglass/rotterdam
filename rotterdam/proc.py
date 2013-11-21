@@ -25,6 +25,7 @@ class Proc(object):
         setproctitle("rotterdam: %s" % self.name)
 
     def run(self):
+        self.setup()
         self.logger.info("Starting %s (%d)", self.name, int(self.pid))
 
     def setup_signals(self):

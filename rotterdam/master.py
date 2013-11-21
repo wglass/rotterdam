@@ -10,6 +10,8 @@ import setproctitle
 from .config import Config
 from .connection import Connection
 from .proc import Proc
+from .injector import Injector
+from .consumer import Consumer
 from .worker_collection import WorkerCollection
 from .redis_extensions import extend_redis
 
@@ -35,7 +37,8 @@ class Master(Proc):
 
         self.config_file = config_file
 
-        self.workers = WorkerCollection(self)
+        self.injectors = WorkerCollection(self, Injector)
+        self.consumers = WorkerCollection(self, Consumer)
 
         self.connection = None
         self.redis = None
@@ -105,8 +108,8 @@ class Master(Proc):
     def run(self):
         super(Master, self).run()
 
-        self.workers.injector_count = self.config.master.num_injectors
-        self.workers.consumer_count = self.config.master.num_consumers
+        self.injectors.count = self.config.master.num_injectors
+        self.consumers.count = self.config.master.num_consumers
 
         while True:
             try:
@@ -123,24 +126,24 @@ class Master(Proc):
     def expand_consumers(self, expansion_signal, *args):
         self.logger.info(
             "Upping number of consumers to %d",
-            self.workers.consumer_count + 1
+            self.consumers.count + 1
         )
-        self.workers.consumer_count += 1
+        self.consumers.count += 1
 
     def contract_consumers(self, contraction_signal, *args):
-        if self.workers.consumer_count <= 1:
+        if self.consumers.count <= 1:
             self.logger.info(
                 "Ignoring TTOU, number of consumers already at %d",
-                self.workers.consumer_count
+                self.consumers.count
             )
             return
 
         self.logger.info(
             "Contracting number of consumers to %d",
-            self.workers.consumer_count - 1
+            self.consumers.count - 1
         )
 
-        self.workers.consumer_count -= 1
+        self.consumers.count -= 1
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
@@ -152,8 +155,8 @@ class Master(Proc):
             self.connection.close()
             self.setup_connection()
 
-        self.workers.injector_count = self.config.master.num_injectors
-        self.workers.consumer_count = self.config.master.num_consumers
+        self.injectors.count = self.config.master.num_injectors
+        self.consumers.count = self.config.master.num_consumers
 
     def relaunch(self, *args):
         os.rename(
@@ -182,10 +185,11 @@ class Master(Proc):
         )
 
     def handle_worker_exit(self, *args):
-        self.workers.regroup()
+        self.injectors.regroup()
+        self.consumers.regroup()
 
         if self.wind_down_time:
-            if len(self.workers) == 0:
+            if self.injectors.count == 0 and self.consumers.count == 0:
                 try:
                     os.unlink(self.pid_file_path)
                 except OSError as e:
@@ -194,10 +198,11 @@ class Master(Proc):
                 sys.exit(0)
             else:
                 time.sleep(self.wind_down_time - time.time())
-                self.workers.broadcast(signal.SIGKILL)
+                self.injectors.broadcast(signal.SIGKILL)
+                self.consumers.broadcast(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
-        self.workers.pause_work()
+        self.consumers.broadcast(signal.SIGINT)
 
     def wind_down_gracefully(self, *args):
         self.logger.info("Winding down")
@@ -205,7 +210,8 @@ class Master(Proc):
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )
-        self.workers.broadcast(signal.SIGQUIT)
+        self.injectors.broadcast(signal.SIGQUIT)
+        self.consumers.broadcast(signal.SIGQUIT)
 
     def wind_down_immediately(self, *args):
         self.logger.info("Winding down IMMEDIATELY")
@@ -213,4 +219,5 @@ class Master(Proc):
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )
-        self.workers.broadcast(signal.SIGTERM)
+        self.injectors.broadcast(signal.SIGTERM)
+        self.consumers.broadcast(signal.SIGTERM)

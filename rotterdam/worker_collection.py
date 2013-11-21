@@ -3,100 +3,59 @@ import os
 import signal
 import sys
 
-from .injector import Injector
-from .consumer import Consumer
-
 
 class WorkerCollection(object):
 
-    def __init__(self, boss):
-        self.boss = boss
-        self.injectors = {}
-        self.consumers = {}
-
-    def pop(self, pid):
-        if pid in self.injectors:
-            return self.injectors.pop(pid)
-        elif pid in self.consumers:
-            return self.consumers.pop(pid)
-
-        raise KeyError
-
-    def __len__(self):
-        return len(self.injectors) + len(self.consumers)
-
-    def iteritems(self):
-        for injector_pid, injector in self.injectors.iteritems():
-            yield injector_pid, injector
-        for consumer_pid, consumer in self.consumers.iteritems():
-            yield consumer_pid, consumer
+    def __init__(self, master, worker_class):
+        self.master = master
+        self.worker_class = worker_class
+        self.workers = {}
 
     @property
-    def consumer_count(self):
-        return len(self.consumers)
+    def count(self):
+        return len(self.workers)
 
-    @consumer_count.setter
-    def consumer_count(self, new_size):
-        while len(self.consumers) > new_size:
-            self.remove_worker(Consumer)
-        while len(self.consumers) < new_size:
-            self.add_worker(Consumer)
+    @count.setter
+    def count(self, new_size):
+        while len(self.workers) > new_size:
+            self.remove_worker()
+        while len(self.workers) < new_size:
+            self.add_worker()
 
-    @property
-    def injector_count(self):
-        return len(self.injectors)
-
-    @injector_count.setter
-    def injector_count(self, new_size):
-        while len(self.injectors) > new_size:
-            self.remove_worker(Injector)
-        while len(self.injectors) < new_size:
-            self.add_worker(Injector)
-
-    def add_worker(self, worker_class):
-        worker = worker_class(self.boss)
+    def add_worker(self):
+        worker = self.worker_class(self.master)
 
         pid = os.fork()
 
         if pid != 0:
-            if worker_class == Consumer:
-                self.consumers[pid] = worker
-            elif worker_class == Injector:
-                self.injectors[pid] = worker
+            self.workers[pid] = worker
             return
 
         try:
-            worker.setup()
             worker.run()
             sys.exit(0)
         except SystemExit:
             raise
         except:
-            self.boss.logger.exception(
-                "Unhandled exception in %s process!" % worker.name
+            self.master.logger.exception(
+                "Unhandled exception in %s process (%d)" % (worker.name, pid)
             )
             sys.exit(-1)
         finally:
-            self.boss.logger.info("%s exiting" % worker.name)
+            self.master.logger.info("%s (%d) exiting", worker.name, pid)
 
-    def remove_worker(self, worker_class):
+    def remove_worker(self):
         (oldest_worker_pid, worker) = sorted(
-            self.workers_by_class[worker_class].items(),
+            self.workers.items(),
             key=lambda i: i[1].age
         ).pop(0)
 
-        self.workers_by_class[worker_class].pop(oldest_worker_pid)
+        self.workers.pop(oldest_worker_pid)
         self.send_signal(signal.SIGQUIT, oldest_worker_pid)
 
-    def pause_work(self):
-        for worker_pid in self.consumers:
-            self.send_signal(worker_pid, signal.SIGINT)
-
     def broadcast(self, signal):
-        for injector_pid in self.injectors:
-            self.send_signal(signal, injector_pid)
-        for consumer_pid in self.consumers:
-            self.send_signal(signal, consumer_pid)
+        for worker_pid in self.workers:
+            self.send_signal(signal, worker_pid)
 
     def send_signal(self, signal, worker_pid):
         try:
@@ -104,14 +63,14 @@ class WorkerCollection(object):
         except OSError as error:
             if error.errno == errno.ESRCH:
                 try:
-                    self.pop(worker_pid)
+                    self.workers.pop(worker_pid)
                 except KeyError:
                     return
             raise
 
     def regroup(self):
         pids_to_pop = []
-        for worker_pid in (self.injectors.keys() + self.consumers.keys()):
+        for worker_pid in self.workers:
             try:
                 pid, status = os.waitpid(worker_pid, os.WNOHANG)
                 if pid == worker_pid:
@@ -123,6 +82,6 @@ class WorkerCollection(object):
 
         for worker_pid in pids_to_pop:
             try:
-                self.pop(worker_pid)
+                self.workers.pop(worker_pid)
             except KeyError:
                 continue
