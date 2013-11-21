@@ -1,4 +1,4 @@
-local scheduled_set, ready_set, job_pool = unpack(KEYS)
+local scheduled_set, working_set, job_pool = unpack(KEYS)
 local timestamp, cutoff, maxitems = unpack(ARGV)
 
 redis.log(redis.LOG_DEBUG, "getting items, max: " .. maxitems)
@@ -20,6 +20,6 @@ for i, unique_key in ipairs(unique_keys) do
 end
 
 redis.call("ZREM", scheduled_set, unpack(unique_keys))
-redis.call("ZADD", ready_set, zadd_args)
+redis.call("ZADD", working_set, zadd_args)
 
 return redis.call("HMGET", job_pool, unpack(unique_keys))

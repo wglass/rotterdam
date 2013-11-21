@@ -42,7 +42,7 @@ def add_qpop(client):
         return method(
             keys=[
                 queue + ":scheduled",
-                queue + ":ready",
+                queue + ":working",
                 queue + ":jobs:pool"
             ],
             args=[time.time(), cutoff, maxitems],
@@ -50,28 +50,6 @@ def add_qpop(client):
         )
 
     client.qpop = types.MethodType(qpop, client)
-
-
-def add_qworkon(client):
-    content = get_script_content("qworkon")
-
-    method = client.register_script(content)
-
-    def qworkon(self, queue, *job_keys):
-        args = [time.time()]
-        args.extend(job_keys)
-
-        return method(
-            keys=[
-                queue + ":ready",
-                queue + ":working",
-                queue + ":jobs:pool"
-            ],
-            args=args,
-            client=self
-        )
-
-    client.qworkon = types.MethodType(qworkon, client)
 
 
 def add_qfinish(client):
@@ -98,7 +76,6 @@ def add_qfinish(client):
 def extend_redis(client):
     add_qadd(client)
     add_qpop(client)
-    add_qworkon(client)
     add_qfinish(client)
 
 

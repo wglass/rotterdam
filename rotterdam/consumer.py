@@ -27,7 +27,6 @@ class Consumer(Worker):
 
     def run_job(self, job):
         self.logger.debug("Job started %s", job)
-        self.redis.qworkon("rotterdam", job.unique_key)
         start_time = time.time()
 
         try:
