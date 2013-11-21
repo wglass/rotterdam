@@ -7,14 +7,11 @@ from .exceptions import NoSuchJob, InvalidJobPayload
 
 class Job(object):
 
-    def __init__(self):
-        self.when = None
-        self.unique_key = None
+    attributes = ['when', 'unique_key', 'module', 'function', 'args', 'kwargs']
 
-        self.module = None
-        self.function = None
-        self.args = None
-        self.kwargs = None
+    def __init__(self):
+        for attribute in self.attributes:
+            setattr(self, attribute, None)
 
         self.call = None
 
@@ -42,6 +39,17 @@ class Job(object):
 
         self.unique_key = uniqueness.hexdigest()
 
+        return self
+
+    def from_payload(self, payload):
+        try:
+            json_payload = json.loads(payload)
+        except ValueError:
+            raise InvalidJobPayload
+
+        for attribute in self.attributes:
+            setattr(self, attribute, json_payload[attribute])
+
     def serialize(self):
         return json.dumps({
             "when": self.when,
@@ -52,25 +60,11 @@ class Job(object):
             "kwargs": self.kwargs
         })
 
-    def deserialize(self, payload):
-        try:
-            payload = json.loads(payload)
-        except ValueError:
-            raise InvalidJobPayload
-
-        for attribute in [
-            'when', 'unique_key', 'module', 'function', 'args', 'kwargs'
-        ]:
-            setattr(self, attribute, payload[attribute])
-
     def load(self):
         try:
             module = __import__(self.module, fromlist=self.function)
-        except ImportError:
-            raise NoSuchJob
-        try:
             self.call = getattr(module, self.function)
-        except AttributeError:
+        except (ImportError, AttributeError):
             raise NoSuchJob
 
     def run(self):

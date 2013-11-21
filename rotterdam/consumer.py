@@ -20,7 +20,7 @@ class Consumer(Worker):
 
         for payload in payloads:
             job = Job()
-            job.deserialize(payload)
+            job.from_payload(payload)
             self.greenlet_pool.spawn(self.run_job, job)
             self.capacity -= 1
             self.logger.debug("Queued job: %s", job)

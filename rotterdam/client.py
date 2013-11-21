@@ -69,6 +69,9 @@ class Client(object):
             if not response or "\n" in response:
                 break
 
+        if not response:
+            raise JobEnqueueError("empty response")
+
         response = json.loads(response)
 
         if response['status'] != "ok":

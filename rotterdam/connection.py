@@ -74,7 +74,7 @@ class Connection(object):
 
             job = Job()
             try:
-                job.deserialize(message)
+                job.from_payload(message)
                 job.load()
             except InvalidJobPayload:
                 response = {"status": "error", "message": "invalid payload"}
