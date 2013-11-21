@@ -4,14 +4,14 @@ from .worker import Worker
 from .job import Job
 
 
-class Unloader(Worker):
+class Consumer(Worker):
 
     def setup(self):
-        super(Unloader, self).setup()
+        super(Consumer, self).setup()
         self.capacity = self.config.greenlet_pool_size
 
     def heartbeat(self):
-        super(Unloader, self).heartbeat()
+        super(Consumer, self).heartbeat()
 
         payloads = self.redis.qpop(
             "rotterdam",

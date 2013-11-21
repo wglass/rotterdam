@@ -3,55 +3,55 @@ import os
 import signal
 import sys
 
-from .unloader import Unloader
-from .loader import Loader
+from .injector import Injector
+from .consumer import Consumer
 
 
-class Union(object):
+class WorkerCollection(object):
 
     def __init__(self, boss):
         self.boss = boss
-        self.loaders = {}
-        self.unloaders = {}
+        self.injectors = {}
+        self.consumers = {}
 
     def pop(self, pid):
-        if pid in self.loaders:
-            return self.loaders.pop(pid)
-        elif pid in self.unloaders:
-            return self.unloaders.pop(pid)
+        if pid in self.injectors:
+            return self.injectors.pop(pid)
+        elif pid in self.consumers:
+            return self.consumers.pop(pid)
 
         raise KeyError
 
     def __len__(self):
-        return len(self.loaders) + len(self.unloaders)
+        return len(self.injectors) + len(self.consumers)
 
     def iteritems(self):
-        for loader_pid, loader in self.loaders.iteritems():
-            yield loader_pid, loader
-        for unloader_pid, unloader in self.unloaders.iteritems():
-            yield unloader_pid, unloader
+        for injector_pid, injector in self.injectors.iteritems():
+            yield injector_pid, injector
+        for consumer_pid, consumer in self.consumers.iteritems():
+            yield consumer_pid, consumer
 
     @property
-    def unloader_count(self):
-        return len(self.unloaders)
+    def consumer_count(self):
+        return len(self.consumers)
 
-    @unloader_count.setter
-    def unloader_count(self, new_size):
-        while len(self.unloaders) > new_size:
-            self.remove_worker(Unloader)
-        while len(self.unloaders) < new_size:
-            self.add_worker(Unloader)
+    @consumer_count.setter
+    def consumer_count(self, new_size):
+        while len(self.consumers) > new_size:
+            self.remove_worker(Consumer)
+        while len(self.consumers) < new_size:
+            self.add_worker(Consumer)
 
     @property
-    def loader_count(self):
-        return len(self.loaders)
+    def injector_count(self):
+        return len(self.injectors)
 
-    @loader_count.setter
-    def loader_count(self, new_size):
-        while len(self.loaders) > new_size:
-            self.remove_worker(Loader)
-        while len(self.loaders) < new_size:
-            self.add_worker(Loader)
+    @injector_count.setter
+    def injector_count(self, new_size):
+        while len(self.injectors) > new_size:
+            self.remove_worker(Injector)
+        while len(self.injectors) < new_size:
+            self.add_worker(Injector)
 
     def add_worker(self, worker_class):
         worker = worker_class(self.boss)
@@ -59,10 +59,10 @@ class Union(object):
         pid = os.fork()
 
         if pid != 0:
-            if worker_class == Unloader:
-                self.unloaders[pid] = worker
-            elif worker_class == Loader:
-                self.loaders[pid] = worker
+            if worker_class == Consumer:
+                self.consumers[pid] = worker
+            elif worker_class == Injector:
+                self.injectors[pid] = worker
             return
 
         try:
@@ -89,14 +89,14 @@ class Union(object):
         self.send_signal(signal.SIGQUIT, oldest_worker_pid)
 
     def pause_work(self):
-        for worker_pid in self.unloaders:
+        for worker_pid in self.consumers:
             self.send_signal(worker_pid, signal.SIGINT)
 
     def broadcast(self, signal):
-        for loader_pid in self.loaders:
-            self.send_signal(signal, loader_pid)
-        for unloader_pid in self.unloaders:
-            self.send_signal(signal, unloader_pid)
+        for injector_pid in self.injectors:
+            self.send_signal(signal, injector_pid)
+        for consumer_pid in self.consumers:
+            self.send_signal(signal, consumer_pid)
 
     def send_signal(self, signal, worker_pid):
         try:
@@ -111,7 +111,7 @@ class Union(object):
 
     def regroup(self):
         pids_to_pop = []
-        for worker_pid in (self.loaders.keys() + self.unloaders.keys()):
+        for worker_pid in (self.injectors.keys() + self.consumers.keys()):
             try:
                 pid, status = os.waitpid(worker_pid, os.WNOHANG)
                 if pid == worker_pid:

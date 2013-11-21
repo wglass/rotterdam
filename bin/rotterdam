@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 
-from rotterdam.boss import Boss
+from rotterdam.master import Master
 
 parser = argparse.ArgumentParser(description="Rotterdam master process runner")
 
@@ -22,6 +22,6 @@ if args.debug:
 else:
     logging.basicConfig(level=logging.INFO)
 
-boss = Boss(args.config_file)
-boss.setup()
-boss.run()
+master = Master(args.config_file)
+master.setup()
+master.run()

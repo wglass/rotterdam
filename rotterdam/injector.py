@@ -2,7 +2,7 @@ from .worker import Worker
 from .exceptions import NoSuchJob
 
 
-class Loader(Worker):
+class Injector(Worker):
 
     source_handlers = {
         "connection": "handle_incoming_jobs"

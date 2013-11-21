@@ -10,17 +10,17 @@ import setproctitle
 from .config import Config
 from .connection import Connection
 from .proc import Proc
-from .union import Union
+from .worker_collection import WorkerCollection
 from .redis_extensions import extend_redis
 
 
-class Boss(Proc):
+class Master(Proc):
 
     signal_map = {
         "hup": "reload_config",
         "usr1": "relaunch",
-        "ttin": "expand_unloaders",
-        "ttou": "contract_unloaders",
+        "ttin": "expand_consumers",
+        "ttou": "contract_consumers",
         "int": "halt_current_jobs",
         "quit": "wind_down_gracefully",
         "term": "wind_down_immediately",
@@ -28,14 +28,14 @@ class Boss(Proc):
     }
 
     def __init__(self, config_file):
-        super(Boss, self).__init__()
+        super(Master, self).__init__()
 
         self.pid_file_path = None
         self.reexec_pid = 0
 
         self.config_file = config_file
 
-        self.workers = Union(self)
+        self.workers = WorkerCollection(self)
 
         self.connection = None
         self.redis = None
@@ -66,8 +66,8 @@ class Boss(Proc):
             raise RuntimeError(
                 (
                     "pid file (%s) already exists! \n"
-                    "If no boss process is running it could be stale."
-                ) % self.pid_file_path
+                    "If no %s process is running it could be stale."
+                ) % (self.name, self.pid_file_path)
             )
 
         fd = open(self.pid_file_path, 'w')
@@ -96,17 +96,17 @@ class Boss(Proc):
         extend_redis(self.redis)
 
     def setup(self):
-        super(Boss, self).setup()
+        super(Master, self).setup()
         self.load_config()
         self.setup_pid_file()
         self.setup_connection()
         self.setup_redis()
 
     def run(self):
-        super(Boss, self).run()
+        super(Master, self).run()
 
-        self.workers.loader_count = self.config.master.num_loaders
-        self.workers.unloader_count = self.config.master.num_unloaders
+        self.workers.injector_count = self.config.master.num_injectors
+        self.workers.consumer_count = self.config.master.num_consumers
 
         while True:
             try:
@@ -120,27 +120,27 @@ class Boss(Proc):
                 self.wind_down_immediately()
                 sys.exit(-1)
 
-    def expand_unloaders(self, expansion_signal, *args):
+    def expand_consumers(self, expansion_signal, *args):
         self.logger.info(
-            "Upping number of unloaders to %d",
-            self.workers.unloader_count + 1
+            "Upping number of consumers to %d",
+            self.workers.consumer_count + 1
         )
-        self.workers.unloader_count += 1
+        self.workers.consumer_count += 1
 
-    def contract_unloaders(self, contraction_signal, *args):
-        if self.workers.unloader_count <= 1:
+    def contract_consumers(self, contraction_signal, *args):
+        if self.workers.consumer_count <= 1:
             self.logger.info(
-                "Ignoring TTOU, number of unloaders already at %d",
-                self.workers.unloader_count
+                "Ignoring TTOU, number of consumers already at %d",
+                self.workers.consumer_count
             )
             return
 
         self.logger.info(
-            "Contracting number of unloaders to %d",
-            self.workers.unloader_count - 1
+            "Contracting number of consumers to %d",
+            self.workers.consumer_count - 1
         )
 
-        self.workers.unloader_count -= 1
+        self.workers.consumer_count -= 1
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
@@ -152,8 +152,8 @@ class Boss(Proc):
             self.connection.close()
             self.setup_connection()
 
-        self.workers.loader_count = self.config.master.num_loaders
-        self.workers.unloader_count = self.config.master.num_unloaders
+        self.workers.injector_count = self.config.master.num_injectors
+        self.workers.consumer_count = self.config.master.num_consumers
 
     def relaunch(self, *args):
         os.rename(
@@ -164,7 +164,6 @@ class Boss(Proc):
         self.reexec_pid = os.fork()
 
         if self.reexec_pid != 0:
-            # old boss proc
             self.pid_file_path += ".old." + str(self.pid)
             setproctitle.setproctitle("rotterdam: old %s" % self.name)
             self.wind_down_gracefully()

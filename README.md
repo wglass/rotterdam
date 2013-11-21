@@ -25,10 +25,10 @@ of a config file (an example.cfg) is included in this here repo:
 
 ```
 [ ~ ] $ rotterdam example.cfg
-INFO:rotterdam.boss:Starting boss (52174)
-INFO:rotterdam.boss:Listening on port 8765
-INFO:rotterdam.boss:Starting up unloader
-INFO:rotterdam.boss:Starting up unloader
+INFO:rotterdam.master:Starting master (52174)
+INFO:rotterdam.master:Listening on port 8765
+INFO:rotterdam.master:Starting up consumer
+INFO:rotterdam.master:Starting up consumer
 ```
 
 ### Sending jobs
@@ -65,52 +65,52 @@ arg1: thingy
 arg2: guy
 foo: bar
 ```
-Note that since it's jobs are executed _concurrently_ with unloader processes they
+Note that since it's jobs are executed _concurrently_ with consumer processes they
 don't necessarily execute in the same order the client sends them.
 
-## Controlling the boss process
+## Controlling the master process
 Rotterdam uses inter-process communcation (IPC) signals for most tasks so that
-the boss/worker processes can chug along the whole time without needed to
+the master/worker processes can chug along the whole time without needed to
 be restarted.  The `rotterdamctl` program is a handy utility for sending
 the proper signals to the proper process.  This program also takes the location
 of a config file as the first argument.  Make sure to use the same config file
 as the rotterdam process you want to control!
 
-### Controlling the number of unloaders
-To add a unloader to the existing rotterdam processes, pass the `expand` command
+### Controlling the number of consumers
+To add a consumer to the existing rotterdam processes, pass the `expand` command
 to `rotterdamctl`:
 ```
 [ ~ ] $ rotterdamctl example.cfg expand
 ```
-The boss processes will log that a new unloader is added:
+The master processes will log that a new consumer is added:
 ```
-INFO:rotterdam.boss:Upping number of unloaders to 3
-INFO:rotterdam.boss:Starting up unloader
+INFO:rotterdam.master:Upping number of consumers to 3
+INFO:rotterdam.master:Starting up consumer
 ```
-Contracting the number of unloaders is a similiar process, but with the `contract`
+Contracting the number of consumers is a similiar process, but with the `contract`
 command:
 ```
 [ ~ ] $ rotterdamctl example.cfg contract
 ```
 ```
-INFO:rotterdam.boss:Contracting number of unloaders to 2
-INFO:rotterdam.boss:Unloader exiting
+INFO:rotterdam.master:Contracting number of consumers to 2
+INFO:rotterdam.master:Consumer exiting
 ```
 ### Reloading configuration settings
-The rotterdam boss process has a facility for reloading its config file on-the-fly
+The rotterdam master process has a facility for reloading its config file on-the-fly
 so no work is lost. It is invoked with the `reload` command to `rotterdamctl`.
 ```
 [ ~ ] $ rotterdamctl example.cfg reload
 ```
-The boss process will then re-read the config file and signal each worker process
+The master process will then re-read the config file and signal each worker process
 to wrap up whatever it's doing while at the same time spawning new worker processes
 based on the new config.
 ```
-INFO:rotterdam.boss:Reloading config
-INFO:rotterdam.boss:Starting up unloader
-INFO:rotterdam.boss:Starting up unloader
-INFO:rotterdam.boss:Unloader exiting
-INFO:rotterdam.boss:Unloader exiting
+INFO:rotterdam.master:Reloading config
+INFO:rotterdam.master:Starting up consumer
+INFO:rotterdam.master:Starting up consumer
+INFO:rotterdam.master:Consumer exiting
+INFO:rotterdam.master:Consumer exiting
 ```
 ### Reloading new code
 Naturally, rotterdam only knows of the jobs available to its python runtime.  What to
@@ -119,21 +119,21 @@ or pause any work while updating?  For this case there's the `relaunch` command:
 ```
 [ ~ ] $ rotteramctl example.cfg relaunch
 ```
-This little trick comes from gunicorn itself.  The boss process keeps track of how
+This little trick comes from gunicorn itself.  The master process keeps track of how
 it was invoked and when it receives this signal will spawn a brand new process to
 replace itself.
 ```
-INFO:rotterdam.boss:Winding down old boss
-INFO:rotterdam.boss:Starting boss (52580)
-INFO:rotterdam.boss:Listening on port 8765
-INFO:rotterdam.boss:Starting up unloader
-INFO:rotterdam.boss:Starting up unloader
-INFO:rotterdam.boss:Unloader exiting
-INFO:rotterdam.boss:Unloader exiting
+INFO:rotterdam.master:Winding down old master
+INFO:rotterdam.master:Starting master (52580)
+INFO:rotterdam.master:Listening on port 8765
+INFO:rotterdam.master:Starting up consumer
+INFO:rotterdam.master:Starting up consumer
+INFO:rotterdam.master:Consumer exiting
+INFO:rotterdam.master:Consumer exiting
 [ ~ ] $
 ```
- Once the new boss is up and running, the old boss process signals its child worker
-processes to wrap up what they're doing and shuts itself down while the new boss
+ Once the new master is up and running, the old master process signals its child worker
+processes to wrap up what they're doing and shuts itself down while the new master
 processes chugs along and accepts data on the same socket but with freshly-loaded
 python code.  Clever, eh?
 ### Shutting down
@@ -142,7 +142,7 @@ Stopping rotterdam is done via the (drumroll please)... `stop` command:
 [ ~ ] $ rotterdamctl example.cfg stop
 ```
 ```
-INFO:rotterdam.boss:Winding down boss
-INFO:rotterdam.boss:Unloader exiting
-INFO:rotterdam.boss:Unloader exiting
+INFO:rotterdam.master:Winding down master
+INFO:rotterdam.master:Consumer exiting
+INFO:rotterdam.master:Consumer exiting
 ```
