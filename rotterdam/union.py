@@ -5,75 +5,64 @@ import sys
 
 from .unloader import Unloader
 from .loader import Loader
-from .arbiter import Arbiter
 
 
 class Union(object):
 
     def __init__(self, boss):
         self.boss = boss
-        self.workers_by_class = {
-            Unloader: {},
-            Loader: {},
-            Arbiter: {}
-        }
+        self.loaders = {}
+        self.unloaders = {}
 
     def pop(self, pid):
-        for worker_xref in self.workers_by_class.values():
-            if pid in worker_xref:
-                return worker_xref.pop(pid)
+        if pid in self.loaders:
+            return self.loaders.pop(pid)
+        elif pid in self.unloaders:
+            return self.unloaders.pop(pid)
 
         raise KeyError
 
     def __len__(self):
-        return sum([
-            len(worker_xref)
-            for worker_xref in self.workers_by_class.values()
-        ])
+        return len(self.loaders) + len(self.unloaders)
 
     def iteritems(self):
-        for worker_xref in self.workers_by_class.values():
-            for pid, worker in worker_xref.iteritems():
-                yield pid, worker
+        for loader_pid, loader in self.loaders.iteritems():
+            yield loader_pid, loader
+        for unloader_pid, unloader in self.unloaders.iteritems():
+            yield unloader_pid, unloader
 
     @property
     def unloader_count(self):
-        return len(self.workers_by_class[Unloader])
+        return len(self.unloaders)
 
     @unloader_count.setter
     def unloader_count(self, new_size):
-        self.sync_count(Unloader, new_size)
+        while len(self.unloaders) > new_size:
+            self.remove_worker(Unloader)
+        while len(self.unloaders) < new_size:
+            self.add_worker(Unloader)
 
     @property
     def loader_count(self):
-        return len(self.workers_by_class[Loader])
+        return len(self.loaders)
 
     @loader_count.setter
     def loader_count(self, new_size):
-        self.sync_count(Loader, new_size)
-
-    @property
-    def arbiter_count(self):
-        return len(self.workers_by_class[Arbiter])
-
-    @arbiter_count.setter
-    def arbiter_count(self, new_size):
-        self.sync_count(Arbiter, new_size)
-
-    def sync_count(self, worker_class, new_size):
-        while len(self.workers_by_class[worker_class]) > new_size:
-            self.remove_worker(worker_class)
-
-        while len(self.workers_by_class[worker_class]) < new_size:
-            self.add_worker(worker_class)
+        while len(self.loaders) > new_size:
+            self.remove_worker(Loader)
+        while len(self.loaders) < new_size:
+            self.add_worker(Loader)
 
     def add_worker(self, worker_class):
-        worker = worker_class.onboard(self.boss)
+        worker = worker_class(self.boss)
 
         pid = os.fork()
 
         if pid != 0:
-            self.workers_by_class[worker_class][pid] = worker
+            if worker_class == Unloader:
+                self.unloaders[pid] = worker
+            elif worker_class == Loader:
+                self.loaders[pid] = worker
             return
 
         try:
@@ -99,13 +88,15 @@ class Union(object):
         self.workers_by_class[worker_class].pop(oldest_worker_pid)
         self.send_signal(signal.SIGQUIT, oldest_worker_pid)
 
-    def broadcast(self, signal):
-        for worker_class in self.workers_by_class.keys():
-            self.broadcast_to(worker_class, signal)
+    def pause_work(self):
+        for worker_pid in self.unloaders:
+            self.send_signal(worker_pid, signal.SIGINT)
 
-    def broadcast_to(self, worker_class, signal):
-        for worker_pid in self.workers_by_class[worker_class].keys():
-            self.send_signal(signal, worker_pid)
+    def broadcast(self, signal):
+        for loader_pid in self.loaders:
+            self.send_signal(signal, loader_pid)
+        for unloader_pid in self.unloaders:
+            self.send_signal(signal, unloader_pid)
 
     def send_signal(self, signal, worker_pid):
         try:
@@ -120,16 +111,15 @@ class Union(object):
 
     def regroup(self):
         pids_to_pop = []
-        for worker_xref in self.workers_by_class.values():
-            for worker_pid in worker_xref:
-                try:
-                    pid, status = os.waitpid(worker_pid, os.WNOHANG)
-                    if pid == worker_pid:
-                        pids_to_pop.append(worker_pid)
-                except OSError as e:
-                    if e.errno == errno.ECHILD:
-                        worker_xref.pop(worker_pid)
-                    raise
+        for worker_pid in (self.loaders.keys() + self.unloaders.keys()):
+            try:
+                pid, status = os.waitpid(worker_pid, os.WNOHANG)
+                if pid == worker_pid:
+                    pids_to_pop.append(worker_pid)
+            except OSError as e:
+                if e.errno == errno.ECHILD:
+                    self.pop(worker_pid)
+                raise
 
         for worker_pid in pids_to_pop:
             try:

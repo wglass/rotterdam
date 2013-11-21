@@ -20,22 +20,15 @@ class Worker(Proc):
     def __init__(self, boss):
         super(Worker, self).__init__()
 
-        self.config = boss.config
+        self.config = boss.config.master
         self.redis = boss.redis
 
         possible_channels = {
-            "connection": boss.connection,
-            "ready": boss.ready_queue,
-            "taken": boss.taken_queue,
-            "results": boss.results_queue
+            "connection": boss.connection
         }
         self.sources = {
             channel_name: possible_channels[channel_name]
             for channel_name in self.source_handlers.keys()
-        }
-        self.outputs = {
-            channel_name: possible_channels[channel_name]
-            for channel_name in self.outputs
         }
         self.signal_map = dict(
             self.default_signal_map.items() + self.signal_map.items()

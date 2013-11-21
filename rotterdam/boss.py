@@ -3,7 +3,6 @@ import os
 import signal
 import sys
 import time
-from multiprocessing import queues
 
 import redis
 import setproctitle
@@ -12,8 +11,6 @@ from .config import Config
 from .connection import Connection
 from .proc import Proc
 from .union import Union
-from .unloader import Unloader
-from .arbiter import Arbiter
 from .redis_extensions import extend_redis
 
 
@@ -38,14 +35,10 @@ class Boss(Proc):
 
         self.config_file = config_file
 
-        self.worker_union = Union(self)
+        self.workers = Union(self)
 
         self.connection = None
         self.redis = None
-
-        self.ready_queue = None
-        self.taken_queue = None
-        self.results_queue = None
 
         self.wind_down_time = None
 
@@ -102,25 +95,18 @@ class Boss(Proc):
 
         extend_redis(self.redis)
 
-    def setup_ipc_queues(self):
-        self.ready_queue = queues.Queue(maxsize=None)
-        self.taken_queue = queues.Queue()
-        self.results_queue = queues.Queue()
-
     def setup(self):
         super(Boss, self).setup()
         self.load_config()
         self.setup_pid_file()
-        self.setup_ipc_queues()
         self.setup_connection()
         self.setup_redis()
 
     def run(self):
         super(Boss, self).run()
 
-        self.worker_union.arbiter_count = 1
-        self.worker_union.loader_count = 1
-        self.worker_union.unloader_count = self.config.master.num_unloaders
+        self.workers.loader_count = self.config.master.num_loaders
+        self.workers.unloader_count = self.config.master.num_unloaders
 
         while True:
             try:
@@ -137,26 +123,24 @@ class Boss(Proc):
     def expand_unloaders(self, expansion_signal, *args):
         self.logger.info(
             "Upping number of unloaders to %d",
-            self.worker_union.unloader_count + 1
+            self.workers.unloader_count + 1
         )
-        self.worker_union.unloader_count += 1
-        self.worker_union.broadcast_to(Arbiter, expansion_signal)
+        self.workers.unloader_count += 1
 
     def contract_unloaders(self, contraction_signal, *args):
-        if self.worker_union.unloader_count <= 1:
+        if self.workers.unloader_count <= 1:
             self.logger.info(
                 "Ignoring TTOU, number of unloaders already at %d",
-                self.worker_union.unloader_count
+                self.workers.unloader_count
             )
             return
 
         self.logger.info(
             "Contracting number of unloaders to %d",
-            self.worker_union.unloader_count - 1
+            self.workers.unloader_count - 1
         )
 
-        self.worker_union.broadcast_to(Arbiter, contraction_signal)
-        self.worker_union.unloader_count -= 1
+        self.workers.unloader_count -= 1
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
@@ -168,7 +152,8 @@ class Boss(Proc):
             self.connection.close()
             self.setup_connection()
 
-        self.worker_union.unloader_count = self.config.master.num_unloaders
+        self.workers.loader_count = self.config.master.num_loaders
+        self.workers.unloader_count = self.config.master.num_unloaders
 
     def relaunch(self, *args):
         os.rename(
@@ -198,10 +183,10 @@ class Boss(Proc):
         )
 
     def handle_worker_exit(self, *args):
-        self.worker_union.regroup()
+        self.workers.regroup()
 
         if self.wind_down_time:
-            if len(self.worker_union) == 0:
+            if len(self.workers) == 0:
                 try:
                     os.unlink(self.pid_file_path)
                 except OSError as e:
@@ -210,10 +195,10 @@ class Boss(Proc):
                 sys.exit(0)
             else:
                 time.sleep(self.wind_down_time - time.time())
-                self.worker_union.broadcast(signal.SIGKILL)
+                self.workers.broadcast(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
-        self.worker_union.broadcast_to(Unloader, signal.SIGINT)
+        self.workers.pause_work()
 
     def wind_down_gracefully(self, *args):
         self.logger.info("Winding down")
@@ -221,7 +206,7 @@ class Boss(Proc):
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )
-        self.worker_union.broadcast(signal.SIGQUIT)
+        self.workers.broadcast(signal.SIGQUIT)
 
     def wind_down_immediately(self, *args):
         self.logger.info("Winding down IMMEDIATELY")
@@ -229,7 +214,4 @@ class Boss(Proc):
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )
-        self.worker_union.broadcast(signal.SIGTERM)
-
-    def heartbeat(self):
-        pass
+        self.workers.broadcast(signal.SIGTERM)
