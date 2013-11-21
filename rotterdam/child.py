@@ -11,7 +11,7 @@ from gevent import pool, monkey, select
 class Child(object):
 
     default_signal_map = {
-        "int": "handle_interruption",
+        "int": "toggle_active",
         "quit": "wind_down_gracefully",
         "term": "wind_down_immediately"
     }
@@ -104,8 +104,8 @@ class Child(object):
 
         self.greenlet_pool.join(raise_error=True)
 
-    def handle_interruption(self, *args):
-        pass
+    def toggle_active(self, signal, frame):
+        self.active = not self.active
 
     def wind_down_gracefully(self, signal, frame):
         self.alive = False

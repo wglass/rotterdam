@@ -27,7 +27,7 @@ class Master(object):
         "int": "halt_current_jobs",
         "quit": "wind_down_gracefully",
         "term": "wind_down_immediately",
-        "chld": "handle_worker_exit"
+        "chld": "handle_child_exit"
     }
 
     def __init__(self, config_file):
@@ -135,11 +135,28 @@ class Master(object):
 
         setproctitle.setproctitle("rotterdam: %s" % self.name)
 
-        self.spawn_injector()
-        self.spawn_arbiter()
-
+        self.spawn_child(Injector, sources={"connection": self.connection})
+        self.spawn_child(
+            Arbiter,
+            sources={
+                "taken": self.taken_queue,
+                "results": self.results_queue
+            },
+            outputs={
+                "ready": self.ready_queue
+            }
+        )
         for i in range(self.number_of_workers):
-            self.spawn_worker()
+            self.spawn_child(
+                Worker,
+                sources={
+                    'ready': self.ready_queue
+                },
+                outputs={
+                    'taken': self.taken_queue,
+                    'results': self.results_queue
+                }
+            )
 
         while True:
             try:
@@ -153,15 +170,25 @@ class Master(object):
                 self.wind_down_immediately()
                 sys.exit(-1)
 
-    def expand_workers(self, *args):
+    def expand_workers(self, expansion_signal, *args):
         self.number_of_workers += 1
         self.logger.info(
             "Upping number of workers to %d",
             self.number_of_workers
         )
-        self.spawn_worker()
+        self.spawn_child(
+            Worker,
+                sources={
+                    'ready': self.ready_queue
+                },
+                outputs={
+                    'taken': self.taken_queue,
+                    'results': self.results_queue
+                }
+        )
+        self.broadcast_signal(expansion_signal, child_class=Arbiter)
 
-    def contract_workers(self, *args):
+    def contract_workers(self, contraction_signal, *args):
         if self.number_of_workers <= 1:
             self.logger.info(
                 "Ignoring TTOU, number of workers already at %d",
@@ -174,11 +201,8 @@ class Master(object):
             "Contracting number of workers to %d",
             self.number_of_workers
         )
-        self.ready_queue = queues.Queue(
-            maxsize=(
-                self.number_of_workers * self.config.master.greenlet_pool_size
-            )
-        )
+
+        self.broadcast_signal(contraction_signal, child_class=Arbiter)
 
         # get the pid of the oldest worker by
         # sorting by age and popping the first one
@@ -205,7 +229,16 @@ class Master(object):
             self.setup_connection()
 
         for i in range(self.number_of_workers):
-            self.spawn_worker()
+            self.spawn_child(
+                Worker,
+                sources={
+                    'ready': self.ready_queue
+                },
+                outputs={
+                    'taken': self.taken_queue,
+                    'results': self.results_queue
+                }
+            )
 
         while len(workers_by_age) > 0:
             (worker_pid, _) = workers_by_age.pop(0)
@@ -239,20 +272,20 @@ class Master(object):
             os.environ
         )
 
-    def handle_worker_exit(self, *args):
-        worker_pids = self.workers.keys()
-        for worker_pid in worker_pids:
-            try:
-                pid, status = os.waitpid(worker_pid, os.WNOHANG)
-                if pid == worker_pid:
-                    self.workers.pop(worker_pid)
-            except OSError as e:
-                if e.errno == errno.ECHILD:
-                    self.workers.pop(worker_pid)
-                raise
+    def handle_child_exit(self, *args):
+        for child_xref in [self.workers, self.injectors, self.arbiters]:
+            for child_pid in child_xref.keys():
+                try:
+                    pid, status = os.waitpid(child_pid, os.WNOHANG)
+                    if pid == child_pid:
+                        child_xref.pop(child_pid)
+                except OSError as e:
+                    if e.errno == errno.ECHILD:
+                        child_xref.pop(child_pid)
+                    raise
 
         if self.wind_down_time:
-            if not self.workers:
+            if not any([self.workers, self.injectors, self.arbiters]):
                 try:
                     os.unlink(self.pid_file_path)
                 except OSError as e:
@@ -264,7 +297,7 @@ class Master(object):
                 self.broadcast_signal(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
-        self.broadcast_signal(signal.SIGINT)
+        self.broadcast_signal(signal.SIGINT, child_class=Worker)
 
     def wind_down_gracefully(self, *args):
         self.connection.close()
@@ -274,103 +307,30 @@ class Master(object):
         self.connection.close()
         self.wind_down(signal_to_broadcast=signal.SIGTERM)
 
-    def spawn_injector(self):
-        injector = Injector(
-            self.config.master,
-            self.redis,
-            sources={
-                "connection": self.connection
-            }
-        )
+    def spawn_child(self, child_class, sources=None, outputs=None):
+        name = child_class.__name__.lower()
+
+        child = child_class(self.config.master, self.redis, sources, outputs)
 
         pid = os.fork()
 
         if pid != 0:
-            self.injectors[pid] = injector
+            getattr(self, name + "s")[pid] = child
             return
 
-        # in the injector process now
         try:
-            setproctitle.setproctitle("rotterdam: injector")
-            self.logger.info("Starting up injector")
-            injector.setup()
-            injector.run()
+            setproctitle.setproctitle("rotterdam: %s" % name)
+            self.logger.info("Starting up %s" % name)
+            child.setup()
+            child.run()
             sys.exit(0)
         except SystemExit:
             raise
         except:
-            self.logger.exception("Exception in injector process!")
+            self.logger.exception("Unhandled exception in %s process!" % name)
             sys.exit(-1)
         finally:
-            self.logger.info("Injector exiting")
-
-    def spawn_arbiter(self):
-        arbiter = Arbiter(
-            self.config.master,
-            self.redis,
-            sources={
-                "taken": self.taken_queue,
-                "results": self.results_queue
-            },
-            outputs={
-                "ready": self.ready_queue
-            }
-        )
-
-        pid = os.fork()
-
-        if pid != 0:
-            self.arbiters[pid] = arbiter
-            return
-
-        # in the arbiter process now
-        try:
-            setproctitle.setproctitle("rotterdam: arbiter")
-            self.logger.info("Starting up arbiter")
-            arbiter.setup()
-            arbiter.run()
-            sys.exit(0)
-        except SystemExit:
-            raise
-        except:
-            self.logger.exception("Exception in arbiter process!")
-            sys.exit(-1)
-        finally:
-            self.logger.info("Arbiter exiting")
-
-    def spawn_worker(self):
-        worker = Worker(
-            self.config.master,
-            self.redis,
-            sources={
-                'ready': self.ready_queue
-            },
-            outputs={
-                'taken': self.taken_queue,
-                'results': self.results_queue
-            }
-        )
-
-        pid = os.fork()
-
-        if pid != 0:
-            self.workers[pid] = worker
-            return
-
-        # in the worker process now
-        try:
-            setproctitle.setproctitle("rotterdam: worker")
-            self.logger.info("Starting up worker")
-            worker.setup()
-            worker.run()
-            sys.exit(0)
-        except SystemExit:
-            raise
-        except:
-            self.logger.exception("Exception in worker process!")
-            sys.exit(-1)
-        finally:
-            self.logger.info("Worker exiting")
+            self.logger.info("%s exiting" % name)
 
     def wind_down(self, signal_to_broadcast=signal.SIGQUIT):
         self.logger.info("Winding down %s", self.name)
@@ -379,19 +339,30 @@ class Master(object):
         )
         self.broadcast_signal(signal_to_broadcast)
 
-    def broadcast_signal(self, signal):
-        for worker_pid in self.workers.keys():
-            self.send_signal(signal, worker_pid)
+    def broadcast_signal(self, signal, child_class=None):
+        if not child_class:
+            child_pids = (
+                self.workers.keys()
+                + self.arbiters.keys()
+                + self.injectors.keys()
+            )
+        else:
+            name = child_class.__name__.lower()
+            child_pids = getattr(self, name + "s").keys()
+
+        for child_pid in child_pids:
+            self.send_signal(signal, child_pid)
 
     def send_signal(self, signal, child_pid):
         try:
             os.kill(child_pid, signal)
         except OSError as error:
             if error.errno == errno.ESRCH:
-                try:
-                    self.workers.pop(child_pid)
-                except KeyError:
-                    return
+                for child_xref in [self.workers, self.arbiters, self.injectors]:
+                    try:
+                        self.child_xref.pop(child_pid)
+                    except KeyError:
+                        return
             raise
 
     def heartbeat(self):

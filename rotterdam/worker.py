@@ -5,9 +5,6 @@ from .child import Child
 
 class Worker(Child):
 
-    signal_map = {
-        "int": "toggle_active"
-    }
     source_handlers = {
         "ready": "run_job"
     }
@@ -35,6 +32,3 @@ class Worker(Child):
         self.outputs['results'].put(
             {"job": job, "time": end_time - start_time}
         )
-
-    def toggle_active(self, signal, frame):
-        self.active = not self.active
