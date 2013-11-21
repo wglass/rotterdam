@@ -40,6 +40,8 @@ class Worker(Proc):
 
         self.greenlet_pool = None
 
+        self.age = 0
+
         self.alive = True
         self.active = True
 
@@ -79,6 +81,7 @@ class Worker(Proc):
                                 self.handlers[source_name]()
 
                 self.heartbeat()
+                self.age += 1
 
             except select.error as e:
                 if e.args[0] not in [errno.EAGAIN, errno.EINTR]:

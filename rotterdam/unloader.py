@@ -9,11 +9,21 @@ class Unloader(Worker):
         "ready": "run_job"
     }
 
-    age = 0
+    @classmethod
+    def onboard(cls, boss):
+        return cls(
+            boss.config.master,
+            boss.redis,
+            sources={
+                'ready': boss.ready_queue
+            },
+            outputs={
+                'taken': boss.taken_queue,
+                'results': boss.results_queue
+            }
+        )
 
     def run_job(self, job):
-        self.age += 1
-
         start_time = time.time()
         self.outputs['taken'].put({"job": job, "time": start_time})
 

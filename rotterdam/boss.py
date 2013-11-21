@@ -11,7 +11,7 @@ import setproctitle
 from .config import Config
 from .connection import Connection
 from .proc import Proc
-from .loader import Loader
+from .union import Union
 from .unloader import Unloader
 from .arbiter import Arbiter
 from .redis_extensions import extend_redis
@@ -38,9 +38,7 @@ class Boss(Proc):
 
         self.config_file = config_file
 
-        self.loaders = {}
-        self.arbiters = {}
-        self.unloaders = {}
+        self.worker_union = Union(self)
 
         self.connection = None
         self.redis = None
@@ -64,7 +62,6 @@ class Boss(Proc):
         self.config = Config(self.config_file)
         self.config.load()
         self.pid_file_path = self.config.master.pid_file
-        self.number_of_unloaders = self.config.master.num_unloaders
 
     def setup_pid_file(self):
         if not os.path.isdir(os.path.dirname(self.pid_file_path)):
@@ -123,28 +120,9 @@ class Boss(Proc):
     def run(self):
         super(Boss, self).run()
 
-        self.spawn_worker(Loader, sources={"connection": self.connection})
-        self.spawn_worker(
-            Arbiter,
-            sources={
-                "taken": self.taken_queue,
-                "results": self.results_queue
-            },
-            outputs={
-                "ready": self.ready_queue
-            }
-        )
-        for i in range(self.number_of_unloaders):
-            self.spawn_worker(
-                Unloader,
-                sources={
-                    'ready': self.ready_queue
-                },
-                outputs={
-                    'taken': self.taken_queue,
-                    'results': self.results_queue
-                }
-            )
+        self.worker_union.arbiter_count = 1
+        self.worker_union.loader_count = 1
+        self.worker_union.unloader_count = self.config.master.num_unloaders
 
         while True:
             try:
@@ -159,56 +137,32 @@ class Boss(Proc):
                 sys.exit(-1)
 
     def expand_unloaders(self, expansion_signal, *args):
-        self.number_of_unloaders += 1
         self.logger.info(
             "Upping number of unloaders to %d",
-            self.number_of_unloaders
+            self.worker_union.unloader_count + 1
         )
-        self.spawn_worker(
-            Unloader,
-                sources={
-                    'ready': self.ready_queue
-                },
-                outputs={
-                    'taken': self.taken_queue,
-                    'results': self.results_queue
-                }
-        )
-        self.broadcast_signal(expansion_signal, worker_class=Arbiter)
+        self.worker_union.unloader_count += 1
+        self.worker_union.broadcast_to(Arbiter, expansion_signal)
 
     def contract_unloaders(self, contraction_signal, *args):
-        if self.number_of_unloaders <= 1:
+        if self.worker_union.unloader_count <= 1:
             self.logger.info(
                 "Ignoring TTOU, number of unloaders already at %d",
-                self.number_of_unloaders
+                self.worker_union.unloader_count
             )
             return
 
-        self.number_of_unloaders -= 1
         self.logger.info(
             "Contracting number of unloaders to %d",
-            self.number_of_unloaders
+            self.worker_union.unloader_count - 1
         )
 
-        self.broadcast_signal(contraction_signal, worker_class=Arbiter)
-
-        # get the pid of the oldest unloader by
-        # sorting by age and popping the first one
-        oldest_unloader_pid, _ = sorted(
-            self.unloaders.items(),
-            key=lambda i: i[1].age
-        ).pop(0)
-
-        self.send_signal(signal.SIGQUIT, oldest_unloader_pid)
+        self.worker_union.broadcast_to(Arbiter, contraction_signal)
+        self.worker_union.unloader_count -= 1
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
         old_port = self.config.master.listen_port
-
-        unloaders_by_age = sorted(
-            self.unloaders.items(),
-            key=lambda i: i[1].age
-        )
 
         self.load_config()
 
@@ -216,21 +170,7 @@ class Boss(Proc):
             self.connection.close()
             self.setup_connection()
 
-        for i in range(self.number_of_unloaders):
-            self.spawn_worker(
-                Unloader,
-                sources={
-                    'ready': self.ready_queue
-                },
-                outputs={
-                    'taken': self.taken_queue,
-                    'results': self.results_queue
-                }
-            )
-
-        while len(unloaders_by_age) > 0:
-            (unloader_pid, _) = unloaders_by_age.pop(0)
-            self.send_signal(signal.SIGQUIT, unloader_pid)
+        self.worker_union.unloader_count = self.config.master.num_unloaders
 
     def relaunch(self, *args):
         os.rename(
@@ -244,7 +184,7 @@ class Boss(Proc):
             # old boss proc
             self.pid_file_path += ".old." + str(self.pid)
             setproctitle.setproctitle("rotterdam: old %s" % self.name)
-            self.wind_down()
+            self.wind_down_gracefully()
             return
 
         os.environ["ROTTERDAM_SOCKET_FD"] = str(
@@ -260,19 +200,10 @@ class Boss(Proc):
         )
 
     def handle_worker_exit(self, *args):
-        for worker_xref in [self.loaders, self.unloaders, self.arbiters]:
-            for worker_pid in worker_xref.keys():
-                try:
-                    pid, status = os.waitpid(worker_pid, os.WNOHANG)
-                    if pid == worker_pid:
-                        worker_xref.pop(worker_pid)
-                except OSError as e:
-                    if e.errno == errno.ECHILD:
-                        worker_xref.pop(worker_pid)
-                    raise
+        self.worker_union.regroup()
 
         if self.wind_down_time:
-            if not any([self.loaders, self.unloaders, self.arbiters]):
+            if len(self.worker_union) == 0:
                 try:
                     os.unlink(self.pid_file_path)
                 except OSError as e:
@@ -281,76 +212,26 @@ class Boss(Proc):
                 sys.exit(0)
             else:
                 time.sleep(self.wind_down_time - time.time())
-                self.broadcast_signal(signal.SIGKILL)
+                self.worker_union.broadcast(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
-        self.broadcast_signal(signal.SIGINT, worker_class=Unloader)
+        self.worker_union.broadcast_to(Unloader, signal.SIGINT)
 
     def wind_down_gracefully(self, *args):
-        self.connection.close()
-        self.wind_down()
-
-    def wind_down_immediately(self, *args):
-        self.connection.close()
-        self.wind_down(signal_to_broadcast=signal.SIGTERM)
-
-    def spawn_worker(self, worker_class, sources=None, outputs=None):
-        worker = worker_class(self.config.master, self.redis, sources, outputs)
-
-        pid = os.fork()
-
-        if pid != 0:
-            getattr(self, worker.name + "s")[pid] = worker
-            return
-
-        try:
-            worker.setup()
-            worker.run()
-            sys.exit(0)
-        except SystemExit:
-            raise
-        except:
-            self.logger.exception(
-                "Unhandled exception in %s process!" % worker.name
-            )
-            sys.exit(-1)
-        finally:
-            self.logger.info("%s exiting" % worker.name)
-
-    def wind_down(self, signal_to_broadcast=signal.SIGQUIT):
         self.logger.info("Winding down")
+        self.connection.close()
         self.wind_down_time = (
             time.time() + self.config.master.shutdown_grace_period
         )
-        self.broadcast_signal(signal_to_broadcast)
+        self.worker_union.broadcast(signal.SIGQUIT)
 
-    def broadcast_signal(self, signal, worker_class=None):
-        if not worker_class:
-            worker_pids = (
-                self.loaders.keys()
-                + self.unloaders.keys()
-                + self.arbiters.keys()
-            )
-        else:
-            name = worker_class.__name__.lower()
-            worker_pids = getattr(self, name + "s").keys()
-
-        for worker_pid in worker_pids:
-            self.send_signal(signal, worker_pid)
-
-    def send_signal(self, signal, worker_pid):
-        try:
-            os.kill(worker_pid, signal)
-        except OSError as error:
-            if error.errno == errno.ESRCH:
-                for worker_xref in [
-                        self.loaders, self.arbiters, self.unloaders
-                ]:
-                    try:
-                        self.worker_xref.pop(worker_pid)
-                    except KeyError:
-                        return
-            raise
+    def wind_down_immediately(self, *args):
+        self.logger.info("Winding down IMMEDIATELY")
+        self.connection.close()
+        self.wind_down_time = (
+            time.time() + self.config.master.shutdown_grace_period
+        )
+        self.worker_union.broadcast(signal.SIGTERM)
 
     def heartbeat(self):
         pass

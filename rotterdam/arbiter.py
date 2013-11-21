@@ -16,6 +16,20 @@ class Arbiter(Worker):
         'results': 'handle_finished_job'
     }
 
+    @classmethod
+    def onboard(cls, boss):
+        return cls(
+            boss.config.master,
+            boss.redis,
+            sources={
+                "taken": boss.taken_queue,
+                "results": boss.results_queue
+            },
+            outputs={
+                "ready": boss.ready_queue
+            }
+        )
+
     def setup(self):
         super(Arbiter, self).setup()
         self.capacity = (
