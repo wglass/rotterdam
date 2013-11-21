@@ -38,11 +38,11 @@ class WorkerCollection(object):
             raise
         except:
             self.master.logger.exception(
-                "Unhandled exception in %s process (%d)" % (worker.name, pid)
+                "Unhandled exception in %s process", worker.name
             )
             sys.exit(-1)
         finally:
-            self.master.logger.info("%s (%d) exiting", worker.name, pid)
+            self.master.logger.info("%s process exiting", worker.name)
 
     def remove_worker(self):
         (oldest_worker_pid, worker) = sorted(
@@ -68,20 +68,22 @@ class WorkerCollection(object):
                     return
             raise
 
-    def regroup(self):
-        pids_to_pop = []
+    def regroup(self, regenerate=True):
+        exited_worker_pids = []
         for worker_pid in self.workers:
             try:
                 pid, status = os.waitpid(worker_pid, os.WNOHANG)
                 if pid == worker_pid:
-                    pids_to_pop.append(worker_pid)
+                    exited_worker_pids.append(worker_pid)
             except OSError as e:
                 if e.errno == errno.ECHILD:
                     self.pop(worker_pid)
                 raise
 
-        for worker_pid in pids_to_pop:
+        for worker_pid in exited_worker_pids:
             try:
                 self.workers.pop(worker_pid)
             except KeyError:
-                continue
+                pass
+            if regenerate:
+                self.add_worker()

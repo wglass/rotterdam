@@ -125,7 +125,7 @@ class Master(Proc):
 
     def expand_consumers(self, expansion_signal, *args):
         self.logger.info(
-            "Upping number of consumers to %d",
+            "Expanding number of consumers to %d",
             self.consumers.count + 1
         )
         self.consumers.count += 1
@@ -133,7 +133,7 @@ class Master(Proc):
     def contract_consumers(self, contraction_signal, *args):
         if self.consumers.count <= 1:
             self.logger.info(
-                "Ignoring TTOU, number of consumers already at %d",
+                "Ignoring contraction, number of consumers already at %d",
                 self.consumers.count
             )
             return
@@ -185,10 +185,12 @@ class Master(Proc):
         )
 
     def handle_worker_exit(self, *args):
-        self.injectors.regroup()
-        self.consumers.regroup()
-
-        if self.wind_down_time:
+        if not self.wind_down_time:
+            self.injectors.regroup()
+            self.consumers.regroup()
+        else:
+            self.injectors.regroup(regenerate=False)
+            self.consumers.regroup(regenerate=False)
             if self.injectors.count == 0 and self.consumers.count == 0:
                 try:
                     os.unlink(self.pid_file_path)

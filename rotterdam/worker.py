@@ -10,7 +10,7 @@ from .proc import Proc
 
 class Worker(Proc):
 
-    default_signal_map = {
+    signal_map = {
         "int": "toggle_active",
         "quit": "wind_down_gracefully",
         "term": "wind_down_immediately"
@@ -30,9 +30,6 @@ class Worker(Proc):
             channel_name: possible_channels[channel_name]
             for channel_name in self.source_handlers.keys()
         }
-        self.signal_map = dict(
-            self.default_signal_map.items() + self.signal_map.items()
-        )
         self.handlers = {
             input_name: getattr(self, handler_name)
             for input_name, handler_name in self.source_handlers.iteritems()
