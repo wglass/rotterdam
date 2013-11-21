@@ -9,7 +9,7 @@ class Injector(Worker):
     }
 
     def handle_incoming_jobs(self):
-        for job in self.sources['connection'].iterjobs():
+        for job in self.sources['connection']:
             self.logger.debug("got job: %s", job)
             try:
                 job.load()

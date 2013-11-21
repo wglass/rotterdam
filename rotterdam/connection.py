@@ -40,7 +40,7 @@ class Connection(object):
     def close(self):
         self.socket.close()
 
-    def iterjobs(self):
+    def __iter__(self):
         accepted = False
 
         while not accepted:
