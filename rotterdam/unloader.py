@@ -8,22 +8,11 @@ class Unloader(Worker):
     source_handlers = {
         "ready": "run_job"
     }
-
-    @classmethod
-    def onboard(cls, boss):
-        return cls(
-            boss.config.master,
-            boss.redis,
-            sources={
-                'ready': boss.ready_queue
-            },
-            outputs={
-                'taken': boss.taken_queue,
-                'results': boss.results_queue
-            }
-        )
+    outputs = ['taken', 'results']
 
     def run_job(self, job):
+        self.logger.debug("Job started %s", job)
+        self.redis.qworkon("rotterdam", job.unique_key)
         start_time = time.time()
         self.outputs['taken'].put({"job": job, "time": start_time})
 
@@ -42,3 +31,7 @@ class Unloader(Worker):
         self.outputs['results'].put(
             {"job": job, "time": end_time - start_time}
         )
+        self.logger.debug(
+            "Job completed in %0.2fs seconds", end_time - start_time
+        )
+        self.redis.qfinish("rotterdam", job.unique_key)

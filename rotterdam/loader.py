@@ -8,14 +8,6 @@ class Loader(Worker):
         "connection": "handle_incoming_jobs"
     }
 
-    @classmethod
-    def onboard(cls, boss):
-        return cls(
-            boss.config.master,
-            boss.redis,
-            sources={'connection': boss.connection}
-        )
-
     def handle_incoming_jobs(self):
         for job in self.sources['connection'].iterjobs():
             self.logger.debug("got job: %s", job)

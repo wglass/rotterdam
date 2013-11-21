@@ -17,16 +17,26 @@ class Worker(Proc):
     }
     source_handlers = {}
 
-    def __init__(self, config, redis, sources=None, outputs=None):
+    def __init__(self, boss):
         super(Worker, self).__init__()
 
-        self.config = config
-        self.redis = redis
-        if not sources:
-            sources = {}
-        if not outputs:
-            outputs = {}
+        self.config = boss.config
+        self.redis = boss.redis
 
+        possible_channels = {
+            "connection": boss.connection,
+            "ready": boss.ready_queue,
+            "taken": boss.taken_queue,
+            "results": boss.results_queue
+        }
+        self.sources = {
+            channel_name: possible_channels[channel_name]
+            for channel_name in self.source_handlers.keys()
+        }
+        self.outputs = {
+            channel_name: possible_channels[channel_name]
+            for channel_name in self.outputs
+        }
         self.signal_map = dict(
             self.default_signal_map.items() + self.signal_map.items()
         )
@@ -34,9 +44,6 @@ class Worker(Proc):
             input_name: getattr(self, handler_name)
             for input_name, handler_name in self.source_handlers.iteritems()
         }
-
-        self.sources = sources
-        self.outputs = outputs
 
         self.greenlet_pool = None
 
