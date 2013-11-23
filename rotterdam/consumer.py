@@ -19,8 +19,11 @@ class Consumer(Worker):
         )
 
         for payload in payloads:
-            job = Job()
-            job.from_payload(payload)
+            try:
+                job = Job(payload)
+            except:
+                self.logger.exception("Error when loading job")
+                continue
             self.greenlet_pool.spawn(self.run_job, job)
             self.capacity -= 1
             self.logger.debug("Queued job: %s", job)
@@ -30,14 +33,9 @@ class Consumer(Worker):
         start_time = time.time()
 
         try:
-            job.load()
+            job.run()
         except:
-            self.logger.exception("Exception when loading job!")
-        else:
-            try:
-                job.run()
-            except:
-                self.logger.exception("Exception when running job!")
+            self.logger.exception("Exception when running job!")
 
         end_time = time.time()
 

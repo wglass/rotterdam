@@ -72,10 +72,8 @@ class Connection(object):
             if "\n" in message:
                 message, extra = message.split("\n", 1)
 
-            job = Job()
             try:
-                job.from_payload(message)
-                job.load()
+                job = Job(message)
             except InvalidJobPayload:
                 response = {"status": "error", "message": "invalid payload"}
             except NoSuchJob:

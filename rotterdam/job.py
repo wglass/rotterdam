@@ -1,71 +1,68 @@
 import hashlib
 import json
-import types
+import os
+import time
 
 from .exceptions import NoSuchJob, InvalidJobPayload
 
 
 class Job(object):
 
-    attributes = ['when', 'unique_key', 'module', 'function', 'args', 'kwargs']
-
-    def __init__(self):
-        for attribute in self.attributes:
-            setattr(self, attribute, None)
-
-        self.call = None
-
-    def from_function(self, func, args, kwargs):
-        self.args = args
-        self.kwargs = kwargs
-
-        if isinstance(func, basestring):
-            self.module, self.function = func.split(":")
-        elif isinstance(func, types.FunctionType):
-            self.module = func.__module__
-            self.function = func.__name__
-
-        uniqueness = hashlib.md5()
-
-        uniqueness.update(str(self.module))
-        uniqueness.update(str(self.function))
-
-        for arg in args:
-            uniqueness.update(str(arg))
-        for arg_name in sorted(kwargs.keys()):
-            uniqueness.update(
-                str(arg_name) + "=" + str(kwargs[arg_name])
-            )
-
-        self.unique_key = uniqueness.hexdigest()
-
-        return self
-
-    def from_payload(self, payload):
+    def __init__(self, payload):
         try:
-            json_payload = json.loads(payload)
+            payload = json.loads(payload)
         except ValueError:
             raise InvalidJobPayload
 
-        for attribute in self.attributes:
-            setattr(self, attribute, json_payload[attribute])
+        self.module = payload['module']
+        self.func = payload['func']
+        self.args = payload.get('args', [])
+        self.kwargs = payload.get('kwargs', {})
+
+        try:
+            module = __import__(payload['module'], fromlist=payload['func'])
+            self.call = getattr(module, self.func)
+        except (KeyError, ImportError, AttributeError):
+            raise NoSuchJob
+
+        metadata = self.call.job_metadata
+
+        uniques = [self.module, self.func]
+
+        if not metadata['unique']:
+            uniques += [time.time(), os.getpid()]
+
+        for arg_index, arg_name in enumerate(sorted(metadata['arg_names'])):
+            if (
+                    metadata['unique'] not in [True, False]
+                    and arg_name not in metadata['unique']
+            ):
+                continue
+
+            if arg_name in self.kwargs:
+                uniques.append(arg_name + "=" + self.kwargs[arg_name])
+            else:
+                uniques.append(self.args[arg_index])
+
+        uniqueness = hashlib.md5()
+        for unique in uniques:
+            uniqueness.update(str(unique))
+
+        self.unique_key = uniqueness.hexdigest()
+
+        self.when = time.time()
+        if metadata['delay']:
+            self.when += metadata['delay'].total_seconds()
 
     def serialize(self):
         return json.dumps({
-            "when": self.when,
-            "unique_key": self.unique_key,
-            "module": self.module,
-            "function": self.function,
-            "args": self.args,
-            "kwargs": self.kwargs
+            'when': self.when,
+            'unique_key': self.unique_key,
+            'module': self.module,
+            'func': self.func,
+            'args': self.args,
+            'kwargs': self.kwargs
         })
-
-    def load(self):
-        try:
-            module = __import__(self.module, fromlist=self.function)
-            self.call = getattr(module, self.function)
-        except (ImportError, AttributeError):
-            raise NoSuchJob
 
     def run(self):
         return self.call(*self.args, **self.kwargs)
@@ -78,9 +75,9 @@ class Job(object):
         ])
         if arg_string and kwarg_string:
             kwarg_string = ", " + kwarg_string
-        return "%(module)s.%(func_name)s(%(args)s%(kwargs)s)" % {
+        return "%(module)s.%(func)s(%(args)s%(kwargs)s)" % {
             "module": self.module,
-            "func_name": self.function,
+            "func": self.func,
             "args": arg_string,
             "kwargs": kwarg_string
         }

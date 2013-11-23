@@ -1,13 +1,10 @@
 import errno
 import json
-import logging
 import socket
-import time
 
 from .exceptions import (
     InvalidJobPayload, NoSuchJob, ConnectionError, JobEnqueueError
 )
-from .job import Job
 
 SOCKET_BUFFER_SIZE = 4096
 
@@ -20,8 +17,6 @@ class Client(object):
 
         self.socket = None
 
-        self.logger = logging.getLogger(__name__)
-
     @property
     def connected(self):
         return self.socket and self.socket.fileno()
@@ -30,22 +25,28 @@ class Client(object):
         if self.connected:
             return
 
-        self.logger.debug("connecting to %s:%s", self.host, self.port)
-
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((self.host, self.port))
 
     def enqueue(self, func, *args, **kwargs):
-        job = Job()
-        job.from_function(func, args, kwargs)
-        job.when = int(time.time())
+        payload = {
+            "args": args,
+            "kwargs": kwargs
+        }
 
-        self.logger.debug("enqueuing job %s", job)
+        if isinstance(func, basestring):
+            module, func = func.split(":")
+        else:
+            module = func.__module__
+            func = func.__name__
+
+        payload['module'] = module
+        payload['func'] = func
 
         self.connect()
 
         try:
-            self.socket.sendall(job.serialize() + "\n")
+            self.socket.sendall(json.dumps(payload) + "\n")
         except IOError, e:
             raise ConnectionError(
                 "Error sending job to %s:%s, %s" % (
@@ -86,7 +87,6 @@ class Client(object):
 
     def disconnect(self):
         try:
-            self.logger.debug("disconnecting from %s:%s", self.host, self.port)
             self.socket.close()
         except socket.error:
             pass
