@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import random
 import time
 
 from .exceptions import NoSuchJob, InvalidJobPayload
@@ -30,7 +31,7 @@ class Job(object):
         uniques = [self.module, self.func]
 
         if not metadata['unique']:
-            uniques += [time.time(), os.getpid()]
+            uniques += [time.time(), os.getpid(), random.random()]
 
         for arg_index, arg_name in enumerate(sorted(metadata['arg_names'])):
             if (
