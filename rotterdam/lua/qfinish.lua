@@ -15,5 +15,6 @@ end
 
 redis.call("ZREM", working_set, unpack(unique_keys))
 redis.call("ZADD", done_set, zadd_args)
+redis.call("HDEL", job_pool, unpack(unique_keys))
 
 return 1
