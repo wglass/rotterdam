@@ -1,3 +1,4 @@
+import itertools
 import os
 import time
 import types
@@ -21,10 +22,10 @@ def add_qadd(client):
     def qadd(self, queue, when, job_key, job_payload):
         return method(
             keys=[
-                queue + ":scheduled",
-                queue + ":ready",
-                queue + ":working",
-                queue + ":jobs:pool"
+                "rotterdam:" + queue + ":scheduled",
+                "rotterdam:" + queue + ":ready",
+                "rotterdam:" + queue + ":working",
+                "rotterdam:" + queue + ":jobs:pool"
             ],
             args=[time.time(), when, job_key, job_payload],
             client=self
@@ -38,13 +39,17 @@ def add_qpop(client):
 
     method = client.register_script(content)
 
-    def qpop(self, queue, cutoff, maxitems):
+    def qpop(self, queues, cutoff, maxitems):
+
         return method(
-            keys=[
-                queue + ":scheduled",
-                queue + ":working",
-                queue + ":jobs:pool"
-            ],
+            keys=list(itertools.chain.from_iterable(
+                [
+                    "rotterdam:" + queue + ":scheduled",
+                    "rotterdam:" + queue + ":working",
+                    "rotterdam:" + queue + ":jobs:pool"
+                ]
+                for queue in queues
+            )),
             args=[time.time(), cutoff, maxitems],
             client=self
         )
@@ -62,9 +67,9 @@ def add_qfinish(client):
         args.extend(job_keys)
         return method(
             keys=[
-                queue + ":working",
-                queue + ":done",
-                queue + ":jobs:pool"
+                "rotterdam:" + queue + ":working",
+                "rotterdam:" + queue + ":done",
+                "rotterdam:" + queue + ":jobs:pool"
             ],
             args=args,
             client=self

@@ -20,6 +20,9 @@ class Job(object):
         self.args = payload.get('args', [])
         self.kwargs = payload.get('kwargs', {})
 
+        self.unique_key = payload.get("unique_key")
+        self.when = payload.get("when", time.time())
+
         try:
             module = __import__(payload['module'], fromlist=payload['func'])
             self.call = getattr(module, self.func)
@@ -28,7 +31,14 @@ class Job(object):
 
         metadata = self.call.job_metadata
 
-        uniques = [self.module, self.func]
+        self.queue = metadata['queue']
+        if metadata['delay']:
+            self.when += metadata['delay'].total_seconds()
+
+        if self.unique_key:
+            return
+
+        uniques = [self.module, self.func, self.queue]
 
         if not metadata['unique']:
             uniques += [time.time(), os.getpid(), random.random()]
@@ -50,10 +60,6 @@ class Job(object):
             uniqueness.update(str(unique))
 
         self.unique_key = uniqueness.hexdigest()
-
-        self.when = time.time()
-        if metadata['delay']:
-            self.when += metadata['delay'].total_seconds()
 
     def serialize(self):
         return json.dumps({
