@@ -1,19 +1,22 @@
 import hashlib
 import json
+import logging
 import os
 import random
 import time
 
-from .exceptions import NoSuchJob, InvalidJobPayload
+from .exceptions import NoSuchJob, InvalidPayload
 
 
-class Job(object):
+class Payload(object):
 
-    def __init__(self, payload):
+    def __init__(self, message):
         try:
-            payload = json.loads(payload)
+            payload = json.loads(message)
         except ValueError:
-            raise InvalidJobPayload
+            raise InvalidPayload
+
+        self.logger = logging.getLogger(__name__)
 
         self.module = payload['module']
         self.func = payload['func']
@@ -39,21 +42,13 @@ class Job(object):
             return
 
         uniques = [self.module, self.func, self.queue]
-
+        uniques.extend(self.args)
+        uniques.extend([
+            name + "=" + value
+            for name, value in self.kwargs
+        ])
         if not metadata['unique']:
             uniques += [time.time(), os.getpid(), random.random()]
-
-        for arg_index, arg_name in enumerate(sorted(metadata['arg_names'])):
-            if (
-                    metadata['unique'] not in [True, False]
-                    and arg_name not in metadata['unique']
-            ):
-                continue
-
-            if arg_name in self.kwargs:
-                uniques.append(arg_name + "=" + self.kwargs[arg_name])
-            else:
-                uniques.append(self.args[arg_index])
 
         uniqueness = hashlib.md5()
         for unique in uniques:
@@ -75,7 +70,7 @@ class Job(object):
         return self.call(*self.args, **self.kwargs)
 
     def __repr__(self):
-        arg_string = ", ".join(self.args)
+        arg_string = ", ".join([str(arg) for arg in self.args])
         kwarg_string = ", ".join([
             "%s=%s" % (name, val)
             for name, val in self.kwargs.iteritems()

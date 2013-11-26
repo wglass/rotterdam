@@ -83,6 +83,9 @@ class Master(Proc):
             fd.close()
 
     def setup_connection(self):
+        if self.config.master.num_injectors == 0:
+            return
+
         self.connection = Connection(port=self.config.master.listen_port)
         self.connection.open()
         self.logger.info(

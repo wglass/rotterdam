@@ -4,8 +4,8 @@ import logging
 import os
 import socket
 
-from .job import Job
-from .exceptions import NoSuchJob, InvalidJobPayload
+from .payload import Payload
+from .exceptions import NoSuchJob, InvalidPayload
 
 
 SOCKET_BUFFER_SIZE = 4096
@@ -73,8 +73,8 @@ class Connection(object):
                 message, extra = message.split("\n", 1)
 
             try:
-                job = Job(message)
-            except InvalidJobPayload:
+                job = Payload(message)
+            except InvalidPayload:
                 response = {"status": "error", "message": "invalid payload"}
             except NoSuchJob:
                 response = {"status": "error", "message": "no such job"}

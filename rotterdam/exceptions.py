@@ -10,7 +10,7 @@ class ConnectionError(RotterdamError):
     pass
 
 
-class InvalidJobPayload(RotterdamError):
+class InvalidPayload(RotterdamError):
     pass
 
 

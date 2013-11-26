@@ -1,9 +1,11 @@
+import datetime
 import errno
 import json
 import socket
+import time
 
 from .exceptions import (
-    InvalidJobPayload, NoSuchJob, ConnectionError, JobEnqueueError
+    InvalidPayload, NoSuchJob, ConnectionError, JobEnqueueError
 )
 
 SOCKET_BUFFER_SIZE = 4096
@@ -17,6 +19,8 @@ class Client(object):
 
         self.socket = None
 
+        self.delta = None
+
     @property
     def connected(self):
         return self.socket and self.socket.fileno()
@@ -28,11 +32,25 @@ class Client(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((self.host, self.port))
 
+    def enqueue_in(self, seconds, func, *args, **kwargs):
+        self.delta = datetime.timedelta(seconds=seconds)
+        self.enqueue(func, *args, **kwargs)
+
+    def enqueue_at(self, delta, func, *args, **kwargs):
+        self.delta = delta
+        self.enqueue(func, *args, **kwargs)
+
     def enqueue(self, func, *args, **kwargs):
         payload = {
             "args": args,
             "kwargs": kwargs
         }
+
+        if self.delta:
+            payload['when'] = time.mktime(
+                (datetime.datetime.utcnow() + self.delta).timetuple()
+            )
+        self.delta = None
 
         if isinstance(func, basestring):
             module, func = func.split(":")
@@ -67,7 +85,7 @@ class Client(object):
                 if e.errno not in [errno.EAGAIN, errno.EINTR]:
                     raise
 
-            if not response or "\n" in response:
+            if not response or response.endswith("\n"):
                 break
 
         if not response:
@@ -79,13 +97,16 @@ class Client(object):
             if response["message"] == "no such job":
                 raise NoSuchJob
             elif response["message"] == "invalid payload":
-                raise InvalidJobPayload
+                raise InvalidPayload
             else:
                 raise JobEnqueueError(response["message"])
 
         self.disconnect()
 
     def disconnect(self):
+        if not self.socket:
+            return
+
         try:
             self.socket.close()
         except socket.error:

@@ -1,7 +1,7 @@
 import time
 
 from .worker import Worker
-from .job import Job
+from .payload import Payload
 
 
 class Consumer(Worker):
@@ -22,7 +22,7 @@ class Consumer(Worker):
 
         for payload in payloads:
             try:
-                job = Job(payload)
+                job = Payload(payload)
             except:
                 self.logger.exception("Error when loading job")
                 continue
