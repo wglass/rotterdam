@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="rotterdam",
-    version="0.3.0",
+    version="0.3.2",
     description=(
         "Simple distributed job queue via redis."
     ),
