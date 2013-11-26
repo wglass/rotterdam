@@ -22,7 +22,9 @@ setup(
         "cython==0.19.1",
         "setproctitle",
         "gevent>=1.0dev",
-        "redis==2.7.6"
+        "redis==2.7.6",
+        "python-dateutil",
+        "pytz"
     ],
     dependency_links=[
         "http://github.com/surfly/gevent/tarball/1.0rc3#egg=gevent-1.0dev"

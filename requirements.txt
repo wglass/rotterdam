@@ -1,4 +1,6 @@
 cython==0.19.1
 setproctitle
--e git+git://github.com/surfly/gevent.git@1.0rc2#egg=gevent
+-e git+git://github.com/surfly/gevent.git@1.0rc3#egg=gevent
 redis==2.7.6
+python-dateutil
+pytz

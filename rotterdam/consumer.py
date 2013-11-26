@@ -28,10 +28,10 @@ class Consumer(Worker):
                 continue
             self.greenlet_pool.spawn(self.run_job, job)
             self.capacity -= 1
-            self.logger.debug("Queued job: %s", job)
+            self.logger.debug("job queued: %s", job)
 
     def run_job(self, job):
-        self.logger.debug("Job started %s", job)
+        self.logger.debug("job started: %s", job)
         start_time = time.time()
 
         try:

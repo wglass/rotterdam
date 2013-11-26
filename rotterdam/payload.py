@@ -5,18 +5,20 @@ import os
 import random
 import time
 
+from .serialization import DateAwareJSONDecoder, DateAwareJSONEncoder
 from .exceptions import NoSuchJob, InvalidPayload
 
 
 class Payload(object):
 
     def __init__(self, message):
-        try:
-            payload = json.loads(message)
-        except ValueError:
-            raise InvalidPayload
-
         self.logger = logging.getLogger(__name__)
+
+        try:
+            payload = json.loads(message, cls=DateAwareJSONDecoder)
+        except ValueError:
+            self.logger.exception("Error when loading json")
+            raise InvalidPayload
 
         self.module = payload['module']
         self.func = payload['func']
@@ -64,7 +66,7 @@ class Payload(object):
             'func': self.func,
             'args': self.args,
             'kwargs': self.kwargs
-        })
+        }, cls=DateAwareJSONEncoder)
 
     def run(self):
         return self.call(*self.args, **self.kwargs)

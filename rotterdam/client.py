@@ -4,6 +4,7 @@ import json
 import socket
 import time
 
+from .serialization import DateAwareJSONEncoder
 from .exceptions import (
     InvalidPayload, NoSuchJob, ConnectionError, JobEnqueueError
 )
@@ -64,7 +65,10 @@ class Client(object):
         self.connect()
 
         try:
-            self.socket.sendall(json.dumps(payload) + "\n")
+            self.socket.sendall(
+                json.dumps(payload, cls=DateAwareJSONEncoder)
+                + "\n"
+            )
         except IOError, e:
             raise ConnectionError(
                 "Error sending job to %s:%s, %s" % (
