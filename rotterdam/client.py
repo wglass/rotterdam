@@ -12,7 +12,7 @@ from .exceptions import (
 SOCKET_BUFFER_SIZE = 4096
 
 
-class Client(object):
+class Rotterdam(object):
 
     def __init__(self, host, port=8765):
         self.host = host
@@ -20,7 +20,7 @@ class Client(object):
 
         self.socket = None
 
-        self.delta = None
+        self.time_offset = None
 
     @property
     def connected(self):
@@ -34,11 +34,11 @@ class Client(object):
         self.socket.connect((self.host, self.port))
 
     def enqueue_in(self, seconds, func, *args, **kwargs):
-        self.delta = datetime.timedelta(seconds=seconds)
+        self.time_offset = datetime.timedelta(seconds=seconds)
         self.enqueue(func, *args, **kwargs)
 
-    def enqueue_at(self, delta, func, *args, **kwargs):
-        self.delta = delta
+    def enqueue_at(self, time_offset, func, *args, **kwargs):
+        self.time_offset = time_offset
         self.enqueue(func, *args, **kwargs)
 
     def enqueue(self, func, *args, **kwargs):
@@ -47,11 +47,11 @@ class Client(object):
             "kwargs": kwargs
         }
 
-        if self.delta:
+        if self.time_offset:
             payload['when'] = time.mktime(
-                (datetime.datetime.utcnow() + self.delta).timetuple()
+                (datetime.datetime.utcnow() + self.time_offset).timetuple()
             )
-        self.delta = None
+        self.time_offset = None
 
         if isinstance(func, basestring):
             module, func = func.split(":")
