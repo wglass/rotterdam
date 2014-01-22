@@ -20,7 +20,7 @@ class Control(object):
             pid_file = open(self.config.master.pid_file, 'r')
         except IOError as e:
             if e.errno == errno.ENOENT:
-                raise RuntimeError("Boss process not currently running!")
+                raise RuntimeError("master process not currently running!")
             else:
                 raise
 

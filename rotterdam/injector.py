@@ -12,7 +12,7 @@ class Injector(Worker):
             self.logger.debug("job recieved: %s", job)
 
             self.redis.qadd(
-                job.queue,
+                job.queue_name,
                 job.when,
                 job.unique_key,
                 job.serialize()

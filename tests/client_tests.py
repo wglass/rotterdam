@@ -2,26 +2,27 @@ from unittest import TestCase
 from mock import patch, Mock
 from nose.tools import eq_, assert_raises
 
+import json
 import socket
 
-from rotterdam import Client, ConnectionError
+from rotterdam import Rotterdam, ConnectionError
 
 
 class ClientTests(TestCase):
 
     def test_default_port(self):
-        client = Client("localhost")
+        client = Rotterdam("localhost")
 
         eq_(client.port, 8765)
 
     def test_socket_is_none_at_first(self):
-        client = Client("localhost", port=0)
+        client = Rotterdam("localhost", port=0)
 
         assert client.socket is None
 
     @patch("rotterdam.client.socket")
     def test_connect_connects_the_socket(self, socket):
-        client = Client("localhost", port=0)
+        client = Rotterdam("localhost", port=0)
 
         client.connect()
 
@@ -31,7 +32,7 @@ class ClientTests(TestCase):
 
     @patch("rotterdam.client.socket")
     def test_calling_connect_multiple_times_connects_once(self, socket):
-        client = Client("localhost", port=0)
+        client = Rotterdam("localhost", port=0)
 
         client.connect()
         client.connect()
@@ -41,7 +42,7 @@ class ClientTests(TestCase):
 
     @patch("rotterdam.client.socket")
     def test_disconnect_unsets_the_socket(self, socket):
-        client = Client("localhost", port=0)
+        client = Rotterdam("localhost", port=0)
 
         client.connect()
 
@@ -55,7 +56,7 @@ class ClientTests(TestCase):
 
     @patch.object(socket, "socket")
     def test_disconnect_gobbles_up_socket_errors(self, mock_socket):
-        client = Client("localhost", port=0)
+        client = Rotterdam("localhost", port=0)
 
         client.connect()
 
@@ -63,10 +64,10 @@ class ClientTests(TestCase):
 
         client.disconnect()
 
-    @patch.object(Client, "disconnect")
-    @patch.object(Client, "connected")
+    @patch.object(Rotterdam, "disconnect")
+    @patch.object(Rotterdam, "connected")
     def test_deleting_client_calls_disconnect(self, connected, disconnect):
-        client = Client("localhost")
+        client = Rotterdam("localhost")
 
         client.connected.return_value = True
 
@@ -74,78 +75,101 @@ class ClientTests(TestCase):
 
         disconnect.assert_called_once_with()
 
-    @patch.object(Client, "disconnect")
+    @patch.object(Rotterdam, "disconnect")
     def test_deleting_client_noop_if_not_connected(self, disconnect):
-        client = Client("localhost")
+        client = Rotterdam("localhost")
 
         del client
 
         assert disconnect.called is False
 
     @patch("rotterdam.client.socket")
-    @patch("rotterdam.client.Job")
-    def test_enqueue_sends_a_serialized_job_over_the_socket(self, Job, socket):
-        Job().serialize.return_value = '{"a": "job"}'
+    def test_enqueue_sends_a_simple_payload_over_the_socket(self, socket):
+        socket.socket().recv.return_value = '{"status": "ok"}\n'
 
-        client = Client("localhost")
+        client = Rotterdam("localhost")
 
         def test_func(*args):
             pass
 
         client.enqueue(test_func)
 
-        socket.socket().sendall.assert_called_once_with(
-            Job().serialize.return_value + "\n"
+        sendall = socket.socket().sendall
+
+        eq_(sendall.call_count, 1)
+
+        sent_payload = sendall.call_args[0][0]
+
+        eq_(
+            json.loads(sent_payload),
+            {
+                "func": "test_func",
+                "module": __name__,
+                "args": [],
+                "kwargs": {}
+            }
         )
 
+        assert sent_payload.endswith("\n")
+
     @patch("rotterdam.client.socket")
-    @patch("rotterdam.client.Job")
-    def test_enqueue_loads_job_from_given_functionand_args(self, Job, socket):
-        Job().serialize.return_value = '{"a": "job"}'
+    def test_enqueue_can_send_args_and_kwargs(self, socket):
+        socket.socket().recv.return_value = '{"status": "ok"}\n'
 
-        client = Client("localhost")
+        client = Rotterdam("localhost")
 
-        test_func = Mock()
+        def test_func(*args):
+            pass
 
         client.enqueue(test_func, "foo", bar="bazz")
 
-        Job().from_function.assert_called_once_with(
-            test_func, ("foo",), {"bar": "bazz"}
+        sendall = socket.socket().sendall
+
+        eq_(sendall.call_count, 1)
+
+        sent_payload = sendall.call_args[0][0]
+
+        eq_(
+            json.loads(sent_payload),
+            {
+                "func": "test_func",
+                "module": __name__,
+                "args": ["foo"],
+                "kwargs": {"bar": "bazz"}
+            }
         )
 
-    @patch.object(Client, "connect")
+    @patch.object(Rotterdam, "connect")
     @patch("rotterdam.client.socket")
-    @patch("rotterdam.client.Job")
-    def test_enqueue_calls_connect_before_sending(self, Job, socket, connect):
-        client = Client("localhost")
+    def test_enqueue_calls_connect_before_sending(self, socket, connect):
+        socket.socket().recv.return_value = '{"status": "ok"}\n'
 
-        connect_called = False
+        client = Rotterdam("localhost")
 
-        def set_connect_called(*args):
-            global connect_called
-            connect_called = False
+        assert connect.called is False
+
+        def test_func(*args):
+            pass
 
         def error_if_connect_not_called(*args):
-            global connect_called
-            if not connect_called:
+            if not connect.called:
                 raise Exception("client's connect() was not called!!")
 
-        connect.side_effect = set_connect_called
         socket.socket().sendall.side_effect = error_if_connect_not_called
 
-        client.socket = Mock()
+        client.socket = socket.socket()
 
-        client.enqueue(lambda x: x)
+        client.enqueue(test_func)
 
         assert connect.called is True
+        assert socket.socket().sendall.called is True
 
-    @patch.object(Client, "disconnect")
+    @patch.object(Rotterdam, "disconnect")
     @patch("rotterdam.client.socket")
-    @patch("rotterdam.client.Job")
-    def test_enqueue_calls_disconnect_after_sending(
-            self, Job, socket, disconnect
-    ):
-        client = Client("localhost")
+    def test_enqueue_calls_disconnect_after_sending(self, socket, disconnect):
+        socket.socket().recv.return_value = '{"status": "ok"}\n'
+
+        client = Rotterdam("localhost")
 
         disconnect_called = False
 
@@ -165,11 +189,8 @@ class ClientTests(TestCase):
         assert disconnect.called is True
 
     @patch("rotterdam.client.socket")
-    @patch("rotterdam.client.Job")
-    def test_enqueue_raises_connection_error_on_ioerror(
-            self, Job, socket
-    ):
-        client = Client("localhost")
+    def test_enqueue_raises_connection_error_on_ioerror(self, socket):
+        client = Rotterdam("localhost")
 
         socket.socket().sendall.side_effect = IOError(())
 

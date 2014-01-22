@@ -1,11 +1,11 @@
 import functools
 
 
-def job(queue, unique=False, delay=None):
+def job(queue_name, unique=False, delay=None):
 
     def inner(fn):
         fn.job_metadata = {
-            "queue": queue,
+            "queue_name": queue_name,
             "unique": unique,
             "delay": delay
         }

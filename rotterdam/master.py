@@ -3,6 +3,7 @@ import os
 import signal
 import sys
 import time
+from multiprocessing import queues
 
 import redis
 import setproctitle
@@ -10,6 +11,7 @@ import setproctitle
 from .config import Config
 from .connection import Connection
 from .proc import Proc
+from .arbiter import Arbiter
 from .injector import Injector
 from .consumer import Consumer
 from .worker_collection import WorkerCollection
@@ -38,10 +40,14 @@ class Master(Proc):
         self.config_file = config_file
 
         self.injectors = WorkerCollection(self, Injector)
+        self.arbiters = WorkerCollection(self, Arbiter)
         self.consumers = WorkerCollection(self, Consumer)
 
         self.connection = None
         self.redis = None
+
+        self.ready_queue = None
+        self.results_queue = None
 
         self.wind_down_time = None
 
@@ -83,9 +89,6 @@ class Master(Proc):
             fd.close()
 
     def setup_connection(self):
-        if self.config.master.num_injectors == 0:
-            return
-
         self.connection = Connection(port=self.config.master.listen_port)
         self.connection.open()
         self.logger.info(
@@ -101,17 +104,23 @@ class Master(Proc):
 
         extend_redis(self.redis)
 
+    def setup_ipc_queues(self):
+        self.ready_queue = queues.Queue()
+        self.results_queue = queues.Queue()
+
     def setup(self):
         super(Master, self).setup()
         self.load_config()
         self.setup_pid_file()
+        self.setup_ipc_queues()
         self.setup_connection()
         self.setup_redis()
 
     def run(self):
         super(Master, self).run()
 
-        self.injectors.count = self.config.master.num_injectors
+        self.injectors.count = 2
+        self.arbiters.count = 1
         self.consumers.count = self.config.master.num_consumers
 
         while True:
@@ -132,6 +141,7 @@ class Master(Proc):
             self.consumers.count + 1
         )
         self.consumers.count += 1
+        self.arbiters.broadcast(expansion_signal)
 
     def contract_consumers(self, contraction_signal, *args):
         if self.consumers.count <= 1:
@@ -147,6 +157,7 @@ class Master(Proc):
         )
 
         self.consumers.count -= 1
+        self.arbiters.broadcast(contraction_signal)
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
@@ -158,7 +169,8 @@ class Master(Proc):
             self.connection.close()
             self.setup_connection()
 
-        self.injectors.count = self.config.master.num_injectors
+        self.injectors.count = 2
+        self.arbiters.count = 1
         self.consumers.count = self.config.master.num_consumers
 
     def relaunch(self, *args):
@@ -190,11 +202,17 @@ class Master(Proc):
     def handle_worker_exit(self, *args):
         if not self.wind_down_time:
             self.injectors.regroup()
+            self.arbiters.regroup()
             self.consumers.regroup()
         else:
             self.injectors.regroup(regenerate=False)
+            self.arbiters.regroup(regenerate=False)
             self.consumers.regroup(regenerate=False)
-            if self.injectors.count == 0 and self.consumers.count == 0:
+            if (
+                    self.injectors.count == 0
+                    and self.arbiters.count == 0
+                    and self.consumers.count == 0
+            ):
                 try:
                     os.unlink(self.pid_file_path)
                 except OSError as e:
@@ -204,6 +222,7 @@ class Master(Proc):
             else:
                 time.sleep(self.wind_down_time - time.time())
                 self.injectors.broadcast(signal.SIGKILL)
+                self.arbiters.broadcast(signal.SIGKILL)
                 self.consumers.broadcast(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
@@ -216,6 +235,7 @@ class Master(Proc):
             time.time() + self.config.master.shutdown_grace_period
         )
         self.injectors.broadcast(signal.SIGQUIT)
+        self.arbiters.broadcast(signal.SIGQUIT)
         self.consumers.broadcast(signal.SIGQUIT)
 
     def wind_down_immediately(self, *args):
@@ -225,4 +245,5 @@ class Master(Proc):
             time.time() + self.config.master.shutdown_grace_period
         )
         self.injectors.broadcast(signal.SIGTERM)
+        self.arbiters.broadcast(signal.SIGTERM)
         self.consumers.broadcast(signal.SIGTERM)

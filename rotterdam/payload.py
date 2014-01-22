@@ -36,19 +36,21 @@ class Payload(object):
 
         metadata = self.call.job_metadata
 
-        self.queue = metadata['queue']
+        self.queue_name = metadata['queue_name']
         if metadata['delay']:
             self.when += metadata['delay'].total_seconds()
 
         if self.unique_key:
             return
 
-        uniques = [self.module, self.func, self.queue]
-        uniques.extend(self.args)
-        uniques.extend([
-            name + "=" + value
-            for name, value in self.kwargs
-        ])
+        uniques = [self.module, self.func, self.queue_name]
+        if self.args:
+            uniques.extend(self.args)
+        if self.kwargs:
+            uniques.extend([
+                name + "=" + str(value)
+                for name, value in self.kwargs.iteritems()
+            ])
         if not metadata['unique']:
             uniques += [time.time(), os.getpid(), random.random()]
 

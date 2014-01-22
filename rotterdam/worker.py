@@ -1,9 +1,8 @@
 import errno
 import os
 import Queue
+import select
 import sys
-
-from gevent import pool, monkey, select
 
 from .proc import Proc
 
@@ -16,37 +15,39 @@ class Worker(Proc):
         "term": "wind_down_immediately"
     }
     source_handlers = {}
+    outputs = {}
 
-    def __init__(self, boss):
+    def __init__(self, master):
         super(Worker, self).__init__()
 
-        self.config = boss.config.master
-        self.redis = boss.redis
+        self.config = master.config.master
+        self.redis = master.redis
 
         possible_channels = {
-            "connection": boss.connection
+            "ready": master.ready_queue,
+            "results": master.results_queue,
+            "connection": master.connection
         }
         self.sources = {
             channel_name: possible_channels[channel_name]
             for channel_name in self.source_handlers.keys()
+            if channel_name in possible_channels
         }
         self.handlers = {
             input_name: getattr(self, handler_name)
             for input_name, handler_name in self.source_handlers.iteritems()
+            if getattr(self, handler_name, None)
         }
-
-        self.greenlet_pool = None
+        self.outputs = {
+            channel_name: possible_channels[channel_name]
+            for channel_name in self.outputs
+            if channel_name in possible_channels
+        }
 
         self.age = 0
 
         self.alive = True
         self.active = True
-
-    def setup(self):
-        super(Worker, self).setup()
-
-        monkey.patch_all(thread=False)
-        self.greenlet_pool = pool.Pool(self.config.greenlet_pool_size)
 
     def run(self):
         super(Worker, self).run()
@@ -66,14 +67,12 @@ class Worker(Proc):
 
                     for source_name, input_source in self.sources.iteritems():
                         if source_with_data == selectable_of(input_source):
-                            if hasattr(input_source, "get_nowait"):
+                            if getattr(input_source, "get_nowait", None):
                                 try:
                                     payload = input_source.get_nowait()
                                 except Queue.Empty:
                                     continue
-                                self.greenlet_pool.spawn(
-                                    self.handlers[source_name], payload
-                                )
+                                self.handlers[source_name](payload)
                             else:
                                 self.handlers[source_name]()
 
@@ -92,8 +91,6 @@ class Worker(Proc):
             except Exception:
                 self.logger.exception("Unhandled error during run loop")
                 sys.exit(-1)
-
-        self.greenlet_pool.join(raise_error=True)
 
     def toggle_active(self, signal, frame):
         self.active = not self.active
