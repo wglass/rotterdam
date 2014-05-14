@@ -14,6 +14,7 @@ SOCKET_BUFFER_SIZE = 4096
 class Connection(object):
 
     def __init__(self, host='', port=8765):
+        print "port: '%r'" % port
         self.host = host
         self.port = port
 

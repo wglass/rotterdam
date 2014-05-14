@@ -31,7 +31,7 @@ setup(
     entry_points={
         "console_scripts": [
             "rotterdam = rotterdam.scripts.server:run [server]",
-            "rotterdamctl = rotterdam.scripts.control:run",
+            "rotterdamctl = rotterdam.scripts.controller:run",
         ]
     }
 )

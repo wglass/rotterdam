@@ -8,7 +8,6 @@ from multiprocessing import queues
 import redis
 import setproctitle
 
-from .config import Config
 from .connection import Connection
 from .proc import Proc
 from .arbiter import Arbiter
@@ -31,13 +30,13 @@ class Master(Proc):
         "chld": "handle_worker_exit"
     }
 
-    def __init__(self, config_file):
+    def __init__(self, config):
         super(Master, self).__init__()
 
         self.pid_file_path = None
         self.reexec_pid = 0
 
-        self.config_file = config_file
+        self.config = config
 
         self.injectors = WorkerCollection(self, Injector)
         self.arbiters = WorkerCollection(self, Arbiter)
@@ -61,9 +60,8 @@ class Master(Proc):
         }
 
     def load_config(self):
-        self.config = Config(self.config_file)
         self.config.load()
-        self.pid_file_path = self.config.master.pid_file
+        self.pid_file_path = self.config.pid_file
 
     def setup_pid_file(self):
         if not os.path.isdir(os.path.dirname(self.pid_file_path)):
@@ -89,18 +87,18 @@ class Master(Proc):
             fd.close()
 
     def setup_connection(self):
-        self.connection = Connection(port=self.config.master.listen_port)
+        self.connection = Connection(port=self.config.listen_port)
         self.connection.open()
         self.logger.info(
-            "Listening on port %s", self.config.master.listen_port
+            "Listening on port %s", self.config.listen_port
         )
 
     def setup_redis(self):
-        if ":" in self.config.master.redis_host:
-            host, port = self.config.master.redis_host.split(":")
+        if ":" in self.config.redis_host:
+            host, port = self.config.redis_host.split(":")
             self.redis = redis.Redis(host=host, port=port)
         else:
-            self.redis = redis.Redis(host=self.config.master.redis_host)
+            self.redis = redis.Redis(host=self.config.redis_host)
 
         extend_redis(self.redis)
 
@@ -121,7 +119,7 @@ class Master(Proc):
 
         self.injectors.count = 2
         self.arbiters.count = 1
-        self.consumers.count = self.config.master.num_consumers
+        self.consumers.count = self.config.num_consumers
 
         while True:
             try:
@@ -161,17 +159,17 @@ class Master(Proc):
 
     def reload_config(self, *args):
         self.logger.info("Reloading config")
-        old_port = self.config.master.listen_port
+        old_port = self.config.listen_port
 
         self.load_config()
 
-        if self.config.master.listen_port != old_port:
+        if self.config.listen_port != old_port:
             self.connection.close()
             self.setup_connection()
 
         self.injectors.count = 2
         self.arbiters.count = 1
-        self.consumers.count = self.config.master.num_consumers
+        self.consumers.count = self.config.num_consumers
 
     def relaunch(self, *args):
         os.rename(
@@ -232,7 +230,7 @@ class Master(Proc):
         self.logger.info("Winding down")
         self.connection.close()
         self.wind_down_time = (
-            time.time() + self.config.master.shutdown_grace_period
+            time.time() + self.config.shutdown_grace_period
         )
         self.injectors.broadcast(signal.SIGQUIT)
         self.arbiters.broadcast(signal.SIGQUIT)
@@ -242,7 +240,7 @@ class Master(Proc):
         self.logger.info("Winding down IMMEDIATELY")
         self.connection.close()
         self.wind_down_time = (
-            time.time() + self.config.master.shutdown_grace_period
+            time.time() + self.config.shutdown_grace_period
         )
         self.injectors.broadcast(signal.SIGTERM)
         self.arbiters.broadcast(signal.SIGTERM)

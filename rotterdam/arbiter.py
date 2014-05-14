@@ -3,7 +3,6 @@ import time
 
 from .worker import Worker
 from .payload import Payload
-from .exceptions import RotterdamError
 
 
 class Arbiter(Worker):
@@ -19,15 +18,16 @@ class Arbiter(Worker):
 
     def setup(self):
         super(Arbiter, self).setup()
-        self.queues = self.config.queues.split(",")
         self.capacity = self.config.num_consumers
-        self.logger.debug("Arbitrating jobs for: %s", ",".join(self.queues))
+        self.logger.debug(
+            "Arbitrating jobs for: %s", ",".join(self.config.queues)
+        )
 
     def heartbeat(self):
         super(Arbiter, self).heartbeat()
 
         payloads = self.redis.qpop(
-            self.queues,
+            self.config.queues,
             int(time.time()), self.capacity
         )
 

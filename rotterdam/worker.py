@@ -20,7 +20,7 @@ class Worker(Proc):
     def __init__(self, master):
         super(Worker, self).__init__()
 
-        self.config = master.config.master
+        self.config = master.config
         self.redis = master.redis
 
         possible_channels = {
