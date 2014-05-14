@@ -4,7 +4,7 @@ setup(
     name="rotterdam",
     version="0.3.2",
     description=(
-        "Simple distributed job queue via redis."
+        "Simple asynchronous job queue via redis."
     ),
     author="William Glass",
     author_email="william.glass@gmail.com",
@@ -19,14 +19,15 @@ setup(
         "bin/rotterdamctl"
     ],
     install_requires=[
-        "setproctitle",
-        "redis",
         "python-dateutil",
         "pytz"
     ],
-    dependency_links=[
-        "http://github.com/surfly/gevent/tarball/1.0rc3#egg=gevent-1.0dev"
-    ],
+    extras_require={
+        "server": [
+            "setproctitle",
+            "redis"
+        ]
+    },
     tests_require=[
         "mock",
         "nose"
