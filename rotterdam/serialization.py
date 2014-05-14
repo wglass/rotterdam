@@ -38,9 +38,3 @@ class DateAwareJSONDecoder(json.JSONDecoder):
                     value[index] = converted
 
         return value
-
-
-__all__ = [
-    DateAwareJSONEncoder,
-    DateAwareJSONDecoder
-]
