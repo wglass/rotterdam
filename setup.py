@@ -14,10 +14,6 @@ setup(
     package_data={
         'rotterdam': ['lua/*.lua']
     },
-    scripts=[
-        "bin/rotterdam",
-        "bin/rotterdamctl"
-    ],
     install_requires=[
         "python-dateutil",
         "pytz"
@@ -31,5 +27,11 @@ setup(
     tests_require=[
         "mock",
         "nose"
-    ]
+    ],
+    entry_points={
+        "console_scripts": [
+            "rotterdam = rotterdam.scripts.server:run [server]",
+            "rotterdamctl = rotterdam.scripts.control:run",
+        ]
+    }
 )

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 import argparse
 import logging
@@ -15,11 +14,13 @@ parser.add_argument(
     "-d", "--debug", help="Enable debugging output", action="store_true"
 )
 
-args = parser.parse_args(sys.argv[1:])
 
-if args.debug:
-    logging.basicConfig(level=logging.DEBUG)
-else:
-    logging.basicConfig(level=logging.INFO)
+def run():
+    args = parser.parse_args(sys.argv[1:])
 
-Master(args.config_file).run()
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    Master(args.config_file).run()
