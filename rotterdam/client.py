@@ -53,44 +53,16 @@ class Rotterdam(object):
             )
         self.time_offset = None
 
-        if isinstance(func, basestring):
-            module, func = func.split(":")
-        else:
-            module = func.__module__
-            func = func.__name__
+        module, func = extract_module_and_func(func)
 
         payload['module'] = module
         payload['func'] = func
 
         self.connect()
 
-        try:
-            self.socket.sendall(
-                json.dumps(payload, cls=DateAwareJSONEncoder)
-                + "\n"
-            )
-        except IOError, e:
-            raise ConnectionError(
-                "Error sending job to %s:%s, %s" % (
-                    self.host,
-                    self.port,
-                    e.args[1] if len(e.args) > 1 else e.args[0]
-                )
-            )
-            self.disconnect()
+        self.send_payload(payload)
 
-        response = ''
-        while True:
-            try:
-                chunk = self.socket.recv(SOCKET_BUFFER_SIZE)
-                if chunk:
-                    response = response + chunk
-            except socket.error as e:
-                if e.errno not in [errno.EAGAIN, errno.EINTR]:
-                    raise
-
-            if not response or response.endswith("\n"):
-                break
+        response = self.read_response()
 
         if not response:
             raise JobEnqueueError("empty response")
@@ -105,7 +77,39 @@ class Rotterdam(object):
             else:
                 raise JobEnqueueError(response["message"])
 
+    def send_payload(self, payload):
+        try:
+            self.socket.sendall(
+                json.dumps(payload, cls=DateAwareJSONEncoder)
+                + "\n"
+            )
+        except IOError, e:
+            self.disconnect()
+            raise ConnectionError(
+                "Error sending job to %s:%s, %s" % (
+                    self.host,
+                    self.port,
+                    e.args[1] if len(e.args) > 1 else e.args[0]
+                )
+            )
+
+    def read_response(self):
+        response = ''
+        while True:
+            try:
+                chunk = self.socket.recv(SOCKET_BUFFER_SIZE)
+                if chunk:
+                    response = response + chunk
+            except socket.error as e:
+                if e.errno not in [errno.EAGAIN, errno.EINTR]:
+                    raise
+
+            if not response or response.endswith("\n"):
+                break
+
         self.disconnect()
+
+        return response
 
     def disconnect(self):
         if not self.socket:
@@ -120,3 +124,16 @@ class Rotterdam(object):
     def __del__(self):
         if self.connected:
             self.disconnect()
+
+
+def extract_module_and_func(func):
+    if isinstance(func, basestring):
+        module, func = func.split(":")
+    else:
+        module = func.__module__
+        func = func.__name__
+
+    return module, func
+
+
+__all__ = (Rotterdam)
