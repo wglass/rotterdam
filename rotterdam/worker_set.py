@@ -4,7 +4,7 @@ import signal
 import sys
 
 
-class WorkerCollection(object):
+class WorkerSet(object):
 
     def __init__(self, master, worker_class):
         self.master = master
