@@ -5,13 +5,17 @@ import dateutil.parser
 import pytz
 
 
+TIMESTAMP_PREFIX = "@T-"
+INTERVAL_PREFIX = "@I-"
+
+
 class DateAwareJSONEncoder(json.JSONEncoder):
 
     def default(self, value):
         if isinstance(value, datetime.datetime):
-            return "@T-" + value.isoformat()
+            return TIMESTAMP_PREFIX + value.isoformat()
         elif isinstance(value, datetime.timedelta):
-            return "@I-" + str(value.total_seconds())
+            return INTERVAL_PREFIX + str(value.total_seconds())
 
         return super(DateAwareJSONEncoder, self).default(value)
 
@@ -21,20 +25,21 @@ class DateAwareJSONDecoder(json.JSONDecoder):
     def decode(self, value):
         return self.convert(json.loads(value))
 
-    def convert(self, value):
-        if isinstance(value, basestring) and value.startswith("@T-"):
-            return dateutil.parser.parse(value[3:], tzinfos={"UTC": pytz.utc})
-        elif isinstance(value, basestring) and value.startswith("@I-"):
-            return datetime.timedelta(seconds=float(value[3:]))
-        elif isinstance(value, dict):
-            for key, val in value.iteritems():
-                converted = self.convert(val)
-                if converted != val:
-                    value[key] = converted
-        elif isinstance(value, list):
-            for index, val in enumerate(value):
-                converted = self.convert(val)
-                if converted != val:
-                    value[index] = converted
+    def convert(self, val):
+        if isinstance(val, basestring) and val.startswith(TIMESTAMP_PREFIX):
+            return dateutil.parser.parse(
+                val[len(TIMESTAMP_PREFIX):], tzinfos={"UTC": pytz.utc}
+            )
+        elif isinstance(val, basestring) and val.startswith(INTERVAL_PREFIX):
+            return datetime.timedelta(
+                seconds=float(val[len(INTERVAL_PREFIX):])
+            )
+        elif isinstance(val, dict):
+            val = {
+                key: self.convert(value)
+                for key, value in val.iteritems()
+            }
+        elif isinstance(val, list):
+            val = map(self.convert, val)
 
-        return value
+        return val
