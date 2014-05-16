@@ -78,6 +78,12 @@ class Setting(object):
     def set(self, val):
         self.value = val
 
+    def __str__(self):
+        return str(self.value)
+
+    def __repr__(self):
+        return repr(self.value)
+
     def __lt__(self, other):
         return (self.section == other.section and
                 self.order < other.order)

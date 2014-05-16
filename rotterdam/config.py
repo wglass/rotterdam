@@ -110,3 +110,6 @@ class Config(object):
             raise AttributeError("Setting attributes are read-only.")
 
         super(Config, self).__setattr__(name, value)
+
+    def __str__(self):
+        return str(self.settings)
