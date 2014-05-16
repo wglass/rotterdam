@@ -42,7 +42,7 @@ class Arbiter(Worker):
     def handle_finished_job(self, result):
         self.capacity += 1
 
-        job = Payload(result['payload'])
+        job = Payload.deserialize(result['payload'])
         self.redis.qfinish(job.queue_name, job.unique_key)
 
     def expand_capacity(self, *args):

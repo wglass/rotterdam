@@ -11,45 +11,61 @@ from .exceptions import NoSuchJob, InvalidPayload
 
 class Payload(object):
 
-    def __init__(self, message):
-        self.logger = logging.getLogger(__name__)
+    def __init__(self):
+        self.module = None
+        self.func = None
+        self.args = None
+        self.kwargs = None
+        self.call = None
+
+        self.when = None
+
+        self.unique_key = None
+
+        self.logger = None
+
+    @classmethod
+    def deserialize(cls, message):
+        instance = cls()
+
+        instance.logger = logging.getLogger(__name__)
 
         try:
             payload = json.loads(message, cls=DateAwareJSONDecoder)
         except ValueError:
-            self.logger.exception("Error when loading json")
+            instance.logger.exception("Error when loading json")
             raise InvalidPayload
 
-        self.module = payload['module']
-        self.func = payload['func']
-        self.args = payload.get('args', [])
-        self.kwargs = payload.get('kwargs', {})
+        instance.module = payload['module']
+        instance.func = payload['func']
+        instance.args = payload.get('args', [])
+        instance.kwargs = payload.get('kwargs', {})
 
-        self.unique_key = payload.get("unique_key")
-        self.when = payload.get("when", time.time())
+        instance.unique_key = payload.get("unique_key")
+        instance.when = payload.get("when", time.time())
 
         try:
             module = __import__(payload['module'], fromlist=payload['func'])
-            self.call = getattr(module, self.func)
+            instance.call = getattr(module, instance.func)
         except (KeyError, ImportError, AttributeError):
             raise NoSuchJob
 
-        metadata = self.call.job_metadata
+        metadata = instance.call.job_metadata
 
-        self.queue_name = metadata['queue_name']
+        instance.queue_name = metadata['queue_name']
         if metadata['delay']:
-            self.when += metadata['delay'].total_seconds()
+            instance.when += metadata['delay'].total_seconds()
 
-        if self.unique_key:
-            return
+        if instance.unique_key:
+            return instance
 
-        uniques = [self.module, self.func, self.queue_name]
-        if self.args:
-            uniques.extend(self.args)
-        if self.kwargs:
+        uniques = [instance.module, instance.func, instance.queue_name]
+        if instance.args:
+            uniques.extend(instance.args)
+        if instance.kwargs:
             uniques.extend([
                 name + "=" + str(value)
-                for name, value in self.kwargs.iteritems()
+                for name, value in instance.kwargs.iteritems()
             ])
         if not metadata['unique']:
             uniques += [time.time(), os.getpid(), random.random()]
@@ -58,7 +74,9 @@ class Payload(object):
         for unique in uniques:
             uniqueness.update(str(unique))
 
-        self.unique_key = uniqueness.hexdigest()
+        instance.unique_key = uniqueness.hexdigest()
+
+        return instance
 
     def serialize(self):
         return json.dumps({

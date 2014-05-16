@@ -16,9 +16,14 @@ class Consumer(Worker):
         start_time = time.time()
 
         try:
-            Payload(payload).run()
+            job = Payload.deserialize(payload)
         except:
-            self.logger.exception("Exception when running job!")
+            self.logger.exception("Exception when loading job!")
+        else:
+            try:
+                job.run()
+            except:
+                self.logger.exception("Exception when running job!")
 
         end_time = time.time()
 

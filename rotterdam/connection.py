@@ -73,7 +73,7 @@ class Connection(object):
                 message, extra = message.split("\n", 1)
 
             try:
-                job = Payload(message)
+                job = Payload.deserialize(message)
             except InvalidPayload:
                 response = {"status": "error", "message": "invalid payload"}
             except NoSuchJob:
