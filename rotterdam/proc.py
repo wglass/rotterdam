@@ -13,6 +13,7 @@ class Proc(object):
         self.logger = logging.getLogger(self.__module__)
 
         self.pid = None
+        self.parent_pid = None
 
     @property
     def name(self):
