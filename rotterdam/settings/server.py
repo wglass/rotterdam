@@ -2,7 +2,7 @@ from .base import Setting
 
 
 def csv(cls, value):
-    return ",".split(value)
+    return value.split(",")
 
 
 class Queues(Setting):
