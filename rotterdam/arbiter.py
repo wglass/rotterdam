@@ -18,7 +18,14 @@ class Arbiter(Worker):
 
     def setup(self):
         super(Arbiter, self).setup()
-        self.capacity = self.config.num_consumers
+
+        self.multiplier = 1
+
+        if "concurrency" in self.config:
+            self.multiplier = self.config.concurrency
+
+        self.capacity = self.config.num_consumers * self.multiplier
+
         self.logger.debug(
             "Arbitrating jobs for: %s", ",".join(self.config.queues)
         )
@@ -46,9 +53,9 @@ class Arbiter(Worker):
         self.redis.qfinish(job.queue_name, job.unique_key)
 
     def expand_capacity(self, *args):
-        self.capacity += 1
+        self.capacity += self.multiplier
         self.logger.debug("capacity set to %d", self.capacity)
 
     def contract_capacity(self, *args):
-        self.capacity -= 1
+        self.capacity -= self.multiplier
         self.logger.debug("capacity set to %d", self.capacity)

@@ -2,14 +2,37 @@ import time
 
 from .payload import Payload
 from .worker import Worker
+from .features import is_available
+
+
+if is_available("concurrency"):
+    from gevent import monkey, pool
 
 
 class Consumer(Worker):
 
     source_handlers = {
-        "ready": "run_job"
+        "ready": "spawn_job"
     }
     outputs = ['results']
+
+    def __init__(self, *args, **kwargs):
+        super(Consumer, self).__init__(*args, **kwargs)
+
+        self.pool = None
+
+    def setup(self):
+        super(Consumer, self).setup()
+
+        if "concurrency" in self.config:
+            monkey.patch_all(thread=False)
+            self.pool = pool.Pool(self.config.concurrency)
+
+    def spawn_job(self, payload):
+        if self.pool is not None:
+            self.pool.spawn(self.run_job, payload)
+        else:
+            self.run_job(payload)
 
     def run_job(self, payload):
         self.logger.debug("Job started", extra={"payload": payload})

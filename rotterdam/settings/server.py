@@ -1,5 +1,7 @@
 from .base import Setting
 
+from ..features import is_available
+
 
 def csv(cls, value):
     return value.split(",")
@@ -103,3 +105,16 @@ class Debug(Setting):
     cli = ["-d", "--debug"]
     action = "store_true"
     default = False
+
+
+if is_available("concurrency"):
+
+    class Concurrency(Setting):
+        """
+        Number of green threads per process.
+        """
+
+        name = "concurrency"
+        section = "Concurrency"
+        cli = ["-c", "--concurrency"]
+        type = int
