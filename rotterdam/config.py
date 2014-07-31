@@ -4,8 +4,7 @@ import importlib
 import os
 
 
-__version__ = "0.3.2"
-
+from rotterdam import __version__
 
 import settings
 

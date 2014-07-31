@@ -1,8 +1,10 @@
 from setuptools import setup
 
+from rotterdam import __version__
+
 setup(
     name="rotterdam",
-    version="0.3.2",
+    version=__version__,
     description=(
         "Simple asynchronous job queue via redis."
     ),
