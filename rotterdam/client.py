@@ -134,6 +134,3 @@ def extract_module_and_func(func):
         func = func.__name__
 
     return module, func
-
-
-__all__ = (Rotterdam)

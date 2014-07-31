@@ -82,6 +82,3 @@ def extend_redis(client):
     add_qadd(client)
     add_qpop(client)
     add_qfinish(client)
-
-
-__all__ = (extend_redis)
