@@ -10,9 +10,9 @@ from .proc import Proc
 class Worker(Proc):
 
     signal_map = {
-        "int": "toggle_active",
-        "quit": "wind_down_gracefully",
-        "term": "wind_down_immediately"
+        "tstp": "toggle_active",
+        "term": "wind_down_gracefully",
+        "quit": "wind_down_immediately"
     }
     source_handlers = {}
     outputs = {}
@@ -88,18 +88,20 @@ class Worker(Proc):
             except IOError as e:
                 if e.errno not in [errno.EAGAIN, errno.EINTR, errno.EBADF]:
                     raise
+            except KeyboardInterrupt:
+                self.wind_down_gracefully()
             except Exception:
                 self.logger.exception("Unhandled error during run loop")
                 sys.exit(-1)
 
-    def toggle_active(self, signal, frame):
+    def toggle_active(self, *args):
         self.active = not self.active
 
-    def wind_down_gracefully(self, signal, frame):
+    def wind_down_gracefully(self, *args):
         self.alive = False
         self.active = False
 
-    def wind_down_immediately(self, signal, frame):
+    def wind_down_immediately(self, *args):
         self.alive = False
         self.active = False
         sys.exit(0)

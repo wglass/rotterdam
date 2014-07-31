@@ -18,7 +18,7 @@ class Command(Setting):
     name = "command"
     cli = ["command"]
     choices = [
-        "stop", "reload", "relaunch", "expand", "contract"
+        "stop", "reload", "relaunch", "expand", "contract", "pause"
     ]
 
 

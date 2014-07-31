@@ -6,7 +6,8 @@ from rotterdam.config import Config
 
 
 signal_map = {
-    "stop": signal.SIGQUIT,
+    "stop": signal.SIGTERM,
+    "pause": signal.SIGTSTP,
     "reload": signal.SIGHUP,
     "relaunch": signal.SIGUSR1,
     "expand": signal.SIGTTIN,

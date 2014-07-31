@@ -13,4 +13,7 @@ def run():
     else:
         logging.basicConfig(level=logging.INFO)
 
-    Master(config).run()
+    try:
+        Master(config).run()
+    except KeyboardInterrupt:
+        pass

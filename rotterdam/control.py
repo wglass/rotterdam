@@ -35,7 +35,7 @@ class Control(object):
         getattr(self, self.args.command)()
 
     def stop(self):
-        os.kill(self.pid, signal.SIGQUIT)
+        os.kill(self.pid, signal.SIGTERM)
 
     def reload(self):
         os.kill(self.pid, signal.SIGHUP)
@@ -48,3 +48,6 @@ class Control(object):
 
     def contract(self):
         os.kill(self.pid, signal.SIGTTOU)
+
+    def pause(self):
+        os.kill(self.pid, signal.SIGTSTP)

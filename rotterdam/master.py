@@ -24,9 +24,9 @@ class Master(Proc):
         "usr1": "relaunch",
         "ttin": "expand_consumers",
         "ttou": "contract_consumers",
-        "int": "halt_current_jobs",
-        "quit": "wind_down_gracefully",
-        "term": "wind_down_immediately",
+        "tstp": "halt_current_jobs",
+        "term": "wind_down_gracefully",
+        "quit": "wind_down_immediately",
         "chld": "handle_worker_exit"
     }
 
@@ -224,7 +224,8 @@ class Master(Proc):
                 self.consumers.broadcast(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
-        self.consumers.broadcast(signal.SIGINT)
+        self.logger.info("Toggling job processing")
+        self.consumers.broadcast(signal.SIGTSTP)
 
     def wind_down_gracefully(self, *args):
         self.logger.info("Winding down")
@@ -232,9 +233,9 @@ class Master(Proc):
         self.wind_down_time = (
             time.time() + self.config.shutdown_grace_period
         )
-        self.injectors.broadcast(signal.SIGQUIT)
-        self.arbiters.broadcast(signal.SIGQUIT)
-        self.consumers.broadcast(signal.SIGQUIT)
+        self.injectors.broadcast(signal.SIGTERM)
+        self.arbiters.broadcast(signal.SIGTERM)
+        self.consumers.broadcast(signal.SIGTERM)
 
     def wind_down_immediately(self, *args):
         self.logger.info("Winding down IMMEDIATELY")
@@ -242,6 +243,6 @@ class Master(Proc):
         self.wind_down_time = (
             time.time() + self.config.shutdown_grace_period
         )
-        self.injectors.broadcast(signal.SIGTERM)
-        self.arbiters.broadcast(signal.SIGTERM)
-        self.consumers.broadcast(signal.SIGTERM)
+        self.injectors.broadcast(signal.SIGQUIT)
+        self.arbiters.broadcast(signal.SIGQUIT)
+        self.consumers.broadcast(signal.SIGQUIT)

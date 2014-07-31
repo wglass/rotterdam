@@ -73,7 +73,7 @@ class NumConsumers(Setting):
 
 class ShutdownGracePeriod(Setting):
     """
-    Time in seconds to wait between a QUIT and TERM signal.
+    Time in seconds to wait between a TERM and QUIT signal.
     """
 
     name = "shutdown_grace_period"
