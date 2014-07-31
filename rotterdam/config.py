@@ -111,5 +111,8 @@ class Config(object):
 
         super(Config, self).__setattr__(name, value)
 
+    def __contains__(self, name):
+        return name in self.settings and self.settings[name].get() is not None
+
     def __str__(self):
         return str(self.settings)
