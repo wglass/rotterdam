@@ -7,7 +7,7 @@ class ConfigFile(Setting):
     """
 
     name = "config_file"
-    cli = ["-c", "--config_file"]
+    cli = ["-f", "--config_file"]
 
 
 class Command(Setting):
