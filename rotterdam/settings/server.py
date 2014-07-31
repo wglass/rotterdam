@@ -66,7 +66,7 @@ class NumConsumers(Setting):
     """
 
     name = "num_consumers"
-    cli = ["-n", "--num-conusmers"]
+    cli = ["-n", "--num-consumers"]
     type = int
     default = 6
 
