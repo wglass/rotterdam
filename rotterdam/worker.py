@@ -26,7 +26,7 @@ class Worker(Proc):
         possible_channels = {
             "ready": master.ready_queue,
             "results": master.results_queue,
-            "connection": master.connection
+            "connection": master.conn
         }
         self.sources = {
             channel_name: possible_channels[channel_name]
