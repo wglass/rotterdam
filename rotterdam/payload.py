@@ -36,19 +36,18 @@ class Payload(object):
             instance.logger.exception("Error when loading json")
             raise InvalidPayload
 
+        try:
+            module = __import__(payload['module'], fromlist=payload['func'])
+            instance.call = getattr(module, payload['func'])
+        except (KeyError, ImportError, AttributeError):
+            raise NoSuchJob
+
         instance.module = payload['module']
         instance.func = payload['func']
         instance.args = payload.get('args', [])
         instance.kwargs = payload.get('kwargs', {})
-
         instance.unique_key = payload.get("unique_key")
         instance.when = payload.get("when", time.time())
-
-        try:
-            module = __import__(payload['module'], fromlist=payload['func'])
-            instance.call = getattr(module, instance.func)
-        except (KeyError, ImportError, AttributeError):
-            raise NoSuchJob
 
         metadata = instance.call.job_metadata
 
@@ -56,27 +55,28 @@ class Payload(object):
         if metadata['delay']:
             instance.when += metadata['delay'].total_seconds()
 
-        if instance.unique_key:
-            return instance
+        if not instance.unique_key:
+            instance.determine_unique_key()
 
-        uniques = [instance.module, instance.func, instance.queue_name]
-        if instance.args:
-            uniques.extend(instance.args)
-        if instance.kwargs:
+        return instance
+
+    def determine_unique_key(self):
+        uniques = [self.module, self.func, self.queue_name]
+        if self.args:
+            uniques.extend(self.args)
+        if self.kwargs:
             uniques.extend([
                 name + "=" + str(value)
-                for name, value in instance.kwargs.iteritems()
+                for name, value in self.kwargs.iteritems()
             ])
-        if not metadata['unique']:
+        if not self.call.job_metadata['unique']:
             uniques += [time.time(), os.getpid(), random.random()]
 
         uniqueness = hashlib.md5()
         for unique in uniques:
             uniqueness.update(str(unique))
 
-        instance.unique_key = uniqueness.hexdigest()
-
-        return instance
+        self.unique_key = uniqueness.hexdigest()
 
     def serialize(self):
         return json.dumps({
