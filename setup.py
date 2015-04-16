@@ -1,6 +1,6 @@
 from setuptools import setup
 
-version_info = (0, 5, 5)
+version_info = (0, 5, 6)
 
 __version__ = ".".join(str(point) for point in version_info)
 
