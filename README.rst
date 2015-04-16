@@ -15,21 +15,19 @@ of Lua, designed with simplicty and ease of use in mind with as few
 dependencies as possible.
 
 
-It uses `redis<http://redis.io/>`_ as its datastore and is heavily inspired by
-the `unicorn<http://unicorn.bogomips.org>`_ and
-`gunicorn<https://github.com/benoitc/gunicorn>`_ master/worker process model.
-..
+It uses Redis_ as its datastore and is heavily inspired by the Unicorn_ and
+Gunicorn_ master/worker process model.
 
-      **[Installation](#installation)**
-      **[Usage](#usage)**
-      **[Starting up](#starting-up)**
-      **[Sending jobs](#sending-jobs)**
-      **[Controlling the master process](#controlling-the-master-process)**
-      **[Controlling the number of consumers](#controlling-the-number-of-consumers)**
-      **[Reloading configuration settings](#reloading-configuration-settings)**
-      **[Reloading new code](#reloading-new-code)**
-      **[Shutting down](#shutting-down)**
-      **[License](#license)**
+`Installation`_
+`Usage`_
+`Starting up`_
+`Sending jobs`_
+`Controlling the master process`_
+`Controlling the number of consumers`_
+`Reloading configuration settings`_
+`Reloading new code`_
+`Shutting down`_
+`License`_
 
 
 Installation
@@ -190,6 +188,11 @@ License
 
 (c) 2013-2015 William Glass
 
-Rotterdam licensed under the terms of the MIT license.  See the
-`LICENSE<https://github.com/wglass/rotterdam/blob/master/README.md>`_ file for
-more details.
+Rotterdam licensed under the terms of the MIT license.  See the LICENSE_ file
+for more details.
+
+
+.. _Redis: http://redis.io/
+.. _Unicorn: http://unicorn.bogomips.org
+.. _Gunicorn: https://github.com/benoitc/gunicorn
+.. _LICENSE: https://github.com/wglass/rotterdam/blob/master/README.md
