@@ -1,11 +1,11 @@
 Rotterdam
 =========
 
-..image::
+.. image::
     https://travis-ci.org/wglass/rotterdam.svg?branch=master
     :alt: Build Status
     :target: https://travis-ci.org/wglass/rotterdam
-..image::
+.. image::
     https://codeclimate.com/github/wglass/rotterdam/badges/gpa.svg
     :alt: Code Climate
     :target: https://codeclimate.com/github/wglass/rotterdam
