@@ -1,6 +1,8 @@
 rotterdam
 =========
 
+[![Build Status](https://travis-ci.org/wglass/rotterdam.svg?branch=master)](https://travis-ci.org/wglass/rotterdam) [![Code Climate](https://codeclimate.com/github/wglass/rotterdam/badges/gpa.svg)](https://codeclimate.com/github/wglass/rotterdam)
+
 Rotterdam is a simple distributed job queue system, designed to be as simple as possible
 and with as few dependencies as possible.
 
