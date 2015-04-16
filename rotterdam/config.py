@@ -2,9 +2,10 @@ import argparse
 import ConfigParser
 import importlib
 import os
+import pkg_resources
 
 
-from rotterdam import __version__
+version = pkg_resources.get_distribution("rotterdam").version
 
 import settings
 
@@ -51,7 +52,7 @@ class Config(object):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "-v", "--version", action="version",
-            version="Rotterdam (version " + __version__ + ")\n",
+            version="Rotterdam (version " + version + ")\n",
             help="Print the version and exit"
         )
         parser.add_argument("args", nargs="*", help=argparse.SUPPRESS)
