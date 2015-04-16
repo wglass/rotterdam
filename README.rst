@@ -18,16 +18,7 @@ dependencies as possible.
 It uses Redis_ as its datastore and is heavily inspired by the Unicorn_ and
 Gunicorn_ master/worker process model.
 
-`Installation`_
-`Usage`_
-`Starting up`_
-`Sending jobs`_
-`Controlling the master process`_
-`Controlling the number of consumers`_
-`Reloading configuration settings`_
-`Reloading new code`_
-`Shutting down`_
-`License`_
+.. contents:: :local:
 
 
 Installation
@@ -186,7 +177,7 @@ Stopping rotterdam is done via the ``stop`` command::
 License
 -------
 
-(c) 2013-2015 William Glass
+|copy| 2013-2015 William Glass
 
 Rotterdam licensed under the terms of the MIT license.  See the LICENSE_ file
 for more details.
