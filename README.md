@@ -148,3 +148,8 @@ INFO:rotterdam.master:Winding down master
 INFO:rotterdam.master:Consumer exiting
 INFO:rotterdam.master:Consumer exiting
 ```
+
+## License
+
+Rotterdam licensed under the terms of the MIT license.  See the
+[LICENSE](https://github.com/wglass/rotterdam/blob/master/README.md) file for more details.
