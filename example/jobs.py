@@ -1,4 +1,4 @@
-from .decorators import job
+from rotterdam import job
 
 import time
 
@@ -8,6 +8,7 @@ def non_unique_job(arg1, foo=None):
     time.sleep(1)
     print "this was my arg: %s" % arg1
     print "this was my kwarg: %s" % foo
+
 
 @job("audience", unique=True)
 def unique_job(arg):
