@@ -3,17 +3,24 @@ Rotterdam
 
 [![Build Status](https://travis-ci.org/wglass/rotterdam.svg?branch=master)](https://travis-ci.org/wglass/rotterdam) [![Code Climate](https://codeclimate.com/github/wglass/rotterdam/badges/gpa.svg)](https://codeclimate.com/github/wglass/rotterdam)
 
-Rotterdam is a simple distributed job queue system, designed to be as simple as possible
-and with as few dependencies as possible.
+Rotterdam is an asynchronous job queue system written in Python with a dab
+of Lua, designed with simplicty and ease of use in mind with as few dependencies
+as possible.
+
 
 It uses [redis](http://redis.io/) as its datastore and is heavily inspired by the [unicorn](http://unicorn.bogomips.org)
 and [gunicorn](https://github.com/benoitc/gunicorn) master/worker process model.
 
 ## Installation
 
-Rotterdam is available via pypi, installing is as easy as:
+Rotterdam is available via pypi, installing for clients is as easy as:
 ```
 pip install rotterdam
+```
+
+To use the server scripts, install the "server" subproject:
+```
+pip install rotterdam[server]
 ```
 
 ## Usage
@@ -22,8 +29,8 @@ specified in your config file under the `arbiter` section.  See the
 example.cfg file for an example.
 
 ### Starting up
-To start rotterdam, run the `rotterdam` executable and pass in the location
-of a config file (an example.cfg) is included in this here repo:
+To start the rotterdam server, run the `rotterdam` executable and pass in
+the location of a config file (an example.cfg is included in this here repo):
 
 ```
 [ ~ ] $ rotterdam example.cfg
@@ -121,9 +128,9 @@ or pause any work while updating?  For this case there's the `relaunch` command:
 ```
 [ ~ ] $ rotteramctl example.cfg relaunch
 ```
-This little trick comes from gunicorn itself.  The master process keeps track of how
-it was invoked and when it receives this signal will spawn a brand new process to
-replace itself.
+
+The master process will spawn a new master with the same arguments it was invoked
+with and passes along the listening socket's file descriptor.
 ```
 INFO:rotterdam.master:Winding down old master
 INFO:rotterdam.master:Starting master (52580)
@@ -137,9 +144,10 @@ INFO:rotterdam.master:Consumer exiting
  Once the new master is up and running, the old master process signals its child worker
 processes to wrap up what they're doing and shuts itself down while the new master
 processes chugs along and accepts data on the same socket but with freshly-loaded
-python code.  Clever, eh?
+python code.
+
 ### Shutting down
-Stopping rotterdam is done via the (drumroll please)... `stop` command:
+Stopping rotterdam is done via the `stop` command:
 ```
 [ ~ ] $ rotterdamctl example.cfg stop
 ```
@@ -150,6 +158,8 @@ INFO:rotterdam.master:Consumer exiting
 ```
 
 ## License
+
+(c) 2014-2015 William Glass
 
 Rotterdam licensed under the terms of the MIT license.  See the
 [LICENSE](https://github.com/wglass/rotterdam/blob/master/README.md) file for more details.
