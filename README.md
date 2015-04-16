@@ -11,6 +11,17 @@ as possible.
 It uses [redis](http://redis.io/) as its datastore and is heavily inspired by the [unicorn](http://unicorn.bogomips.org)
 and [gunicorn](https://github.com/benoitc/gunicorn) master/worker process model.
 
+**[Installation](#installation)**
+**[Usage](#usage)**
+**[Starting up](#starting-up)**
+**[Sending jobs](#sending-jobs)**
+**[Controlling the master process](#controlling-the-master-process)**
+**[Controlling the number of consumers](#controlling-the-number-of-consumers)**
+**[Reloading configuration settings](#reloading-configuration-settings)**
+**[Reloading new code](#reloading-new-code)**
+**[Shutting down](#shutting-down)**
+**[License](#license)**
+
 ## Installation
 
 Rotterdam is available via pypi, installing for clients is as easy as:
@@ -41,18 +52,17 @@ INFO:rotterdam.master:Starting up consumer
 ```
 
 ### Sending jobs
-All a client program has to do is instantiate a `Client` class with the proper host
+All a client program has to do is instantiate a `Rotterdam` class with the proper host
 and port and call `enqueue`:
 ```python
-from rotterdam import Client
+from rotterdam import Rotterdam
 
-client = Client("localhost")  # default port is 8765
+client = Rotterdam("localhost")  # default port is 8765
 
 client.enqueue("rotterdam.example:some_job", "thingy", "guy", foo="bar")
 client.enqueue("rotterdam.example:some_job", "derp", "hork", foo="bazz")
 ```
-The first argument to `enqueue` is the full namespace of the job to run
-and the rest are passed on to the job itself.
+The first argument to `enqueue` can either be an instance of a function, or a string with the full namespace of the function to be run.
 
 In this example, the job is a simple function that prints out its own arguments:
 ```python
@@ -77,7 +87,7 @@ foo: bar
 Note that since it's jobs are executed _concurrently_ with consumer processes they
 don't necessarily execute in the same order the client sends them.
 
-## Controlling the master process
+### Controlling the master process
 Rotterdam uses inter-process communcation (IPC) signals for most tasks so that
 the master/worker processes can chug along the whole time without needed to
 be restarted.  The `rotterdamctl` program is a handy utility for sending
@@ -159,7 +169,7 @@ INFO:rotterdam.master:Consumer exiting
 
 ## License
 
-(c) 2014-2015 William Glass
+(c) 2013-2015 William Glass
 
 Rotterdam licensed under the terms of the MIT license.  See the
 [LICENSE](https://github.com/wglass/rotterdam/blob/master/README.md) file for more details.
