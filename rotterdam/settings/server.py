@@ -1,4 +1,5 @@
 from .base import Setting
+from .common import ConfigFile, Debug
 
 from ..features import is_available
 
@@ -15,15 +16,6 @@ class Queues(Setting):
     name = "queues"
     cli = ["queues"]
     type = csv
-
-
-class ConfigFile(Setting):
-    """
-    Location of the config file to use.
-    """
-
-    name = "config_file"
-    cli = ["-f", "--config_file"]
 
 
 class PIDFile(Setting):
@@ -93,18 +85,6 @@ class HeartbeatInterval(Setting):
     cli = ["--heartbeat-interval"]
     type = float
     default = 1.0
-
-
-class Debug(Setting):
-    """
-    Turn on debugging
-    """
-
-    name = "debug"
-    section = "Debugging"
-    cli = ["-d", "--debug"]
-    action = "store_true"
-    default = False
 
 
 if is_available("concurrency"):
