@@ -1,4 +1,0 @@
-setproctitle
-redis
-python-dateutil
-pytz
