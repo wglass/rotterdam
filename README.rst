@@ -177,6 +177,8 @@ Stopping rotterdam is done via the ``stop`` command::
 License
 -------
 
+.. include:: <isonum.txt>
+
 |copy| 2013-2015 William Glass
 
 Rotterdam licensed under the terms of the MIT license.  See the LICENSE_ file
