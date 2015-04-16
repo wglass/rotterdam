@@ -11,16 +11,16 @@ as possible.
 It uses [redis](http://redis.io/) as its datastore and is heavily inspired by the [unicorn](http://unicorn.bogomips.org)
 and [gunicorn](https://github.com/benoitc/gunicorn) master/worker process model.
 
-**[Installation](#installation)**
-**[Usage](#usage)**
-**[Starting up](#starting-up)**
-**[Sending jobs](#sending-jobs)**
-**[Controlling the master process](#controlling-the-master-process)**
-**[Controlling the number of consumers](#controlling-the-number-of-consumers)**
-**[Reloading configuration settings](#reloading-configuration-settings)**
-**[Reloading new code](#reloading-new-code)**
-**[Shutting down](#shutting-down)**
-**[License](#license)**
+**[Installation](#installation)**  
+**[Usage](#usage)**  
+**[Starting up](#starting-up)**  
+**[Sending jobs](#sending-jobs)**  
+**[Controlling the master process](#controlling-the-master-process)**  
+**[Controlling the number of consumers](#controlling-the-number-of-consumers)**  
+**[Reloading configuration settings](#reloading-configuration-settings)**  
+**[Reloading new code](#reloading-new-code)**  
+**[Shutting down](#shutting-down)**  
+**[License](#license)**  
 
 ## Installation
 
