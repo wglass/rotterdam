@@ -202,15 +202,16 @@ class Master(Proc):
         self.arbiters.broadcast(sig)
         self.consumers.broadcast(sig)
 
+    def regroup(self, regenerate=True):
+        self.injectors.regroup(regenerate=regenerate)
+        self.arbiters.regroup(regenerate=regenerate)
+        self.consumers.regroup(regenerate=regenerate)
+
     def handle_worker_exit(self, *args):
         if not self.wind_down_time:
-            self.injectors.regroup()
-            self.arbiters.regroup()
-            self.consumers.regroup()
+            self.regroup()
         else:
-            self.injectors.regroup(regenerate=False)
-            self.arbiters.regroup(regenerate=False)
-            self.consumers.regroup(regenerate=False)
+            self.regroup(regenerate=False)
             if (
                     self.injectors.count == 0
                     and self.arbiters.count == 0
