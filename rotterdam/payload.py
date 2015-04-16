@@ -9,6 +9,9 @@ from .serialization import DateAwareJSONDecoder, DateAwareJSONEncoder
 from .exceptions import NoSuchJob, InvalidPayload
 
 
+logger = logging.getLogger(__name__)
+
+
 class Payload(object):
 
     def __init__(self):
@@ -22,26 +25,15 @@ class Payload(object):
 
         self.unique_key = None
 
-        self.logger = None
-
     @classmethod
     def deserialize(cls, message):
-        instance = cls()
-
-        instance.logger = logging.getLogger(__name__)
-
         try:
             payload = json.loads(message, cls=DateAwareJSONDecoder)
         except ValueError:
-            instance.logger.exception("Error when loading json")
+            logger.exception("Error when loading json")
             raise InvalidPayload
 
-        try:
-            module = __import__(payload['module'], fromlist=payload['func'])
-            instance.call = getattr(module, payload['func'])
-        except (KeyError, ImportError, AttributeError):
-            raise NoSuchJob
-
+        instance = cls.import_func(payload['module'], payload['func'])
         instance.module = payload['module']
         instance.func = payload['func']
         instance.args = payload.get('args', [])
@@ -50,13 +42,23 @@ class Payload(object):
         instance.when = payload.get("when", time.time())
 
         metadata = instance.call.job_metadata
-
         instance.queue_name = metadata['queue_name']
         if metadata['delay']:
             instance.when += metadata['delay'].total_seconds()
 
         if not instance.unique_key:
             instance.determine_unique_key()
+
+        return instance
+
+    @classmethod
+    def import_func(cls, module, func):
+        instance = cls()
+        try:
+            module = __import__(module, fromlist=func)
+            instance.call = getattr(module, func)
+        except (KeyError, ImportError, AttributeError):
+            raise NoSuchJob
 
         return instance
 
