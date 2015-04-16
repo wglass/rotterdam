@@ -197,6 +197,11 @@ class Master(Proc):
             os.environ
         )
 
+    def broadcast(self, sig):
+        self.injectors.broadcast(sig)
+        self.arbiters.broadcast(sig)
+        self.consumers.broadcast(sig)
+
     def handle_worker_exit(self, *args):
         if not self.wind_down_time:
             self.injectors.regroup()
@@ -219,9 +224,7 @@ class Master(Proc):
                 sys.exit(0)
             else:
                 time.sleep(self.wind_down_time - time.time())
-                self.injectors.broadcast(signal.SIGKILL)
-                self.arbiters.broadcast(signal.SIGKILL)
-                self.consumers.broadcast(signal.SIGKILL)
+                self.broadcast(signal.SIGKILL)
 
     def halt_current_jobs(self, *args):
         self.logger.info("Toggling job processing")
@@ -233,9 +236,7 @@ class Master(Proc):
         self.wind_down_time = (
             time.time() + self.config.shutdown_grace_period
         )
-        self.injectors.broadcast(signal.SIGTERM)
-        self.arbiters.broadcast(signal.SIGTERM)
-        self.consumers.broadcast(signal.SIGTERM)
+        self.broadcast(signal.SIGTERM)
 
     def wind_down_immediately(self, *args):
         self.logger.info("Winding down IMMEDIATELY")
@@ -243,6 +244,4 @@ class Master(Proc):
         self.wind_down_time = (
             time.time() + self.config.shutdown_grace_period
         )
-        self.injectors.broadcast(signal.SIGQUIT)
-        self.arbiters.broadcast(signal.SIGQUIT)
-        self.consumers.broadcast(signal.SIGQUIT)
+        self.broadcast(signal.SIGQUIT)
