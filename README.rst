@@ -6,9 +6,9 @@ Rotterdam
     :alt: Build Status
     :target: https://travis-ci.org/wglass/rotterdam
 .. image::
-    https://codeclimate.com/github/wglass/rotterdam/badges/gpa.svg
-    :alt: Code Climate
-    :target: https://codeclimate.com/github/wglass/rotterdam
+    https://landscape.io/github/wglass/rotterdam/master/landscape.svg?style=flat
+    :alt: Code Health
+    :target: https://landscape.io/github/wglass/rotterdam/master
 
 Rotterdam is an asynchronous job queue system written in Python with a dab
 of Lua, designed with simplicty and ease of use in mind with as few
