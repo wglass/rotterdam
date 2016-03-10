@@ -1,5 +1,5 @@
 from unittest import TestCase
-from mock import patch, Mock
+from mock import patch
 from nose.tools import eq_, assert_raises
 
 import json

@@ -45,7 +45,9 @@ setup(
     },
     tests_require=[
         "mock",
-        "nose"
+        "nose",
+        "coverage",
+        "flake8",
     ],
     entry_points={
         "console_scripts": [
