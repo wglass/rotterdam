@@ -1,5 +1,5 @@
 from .base import Setting
-from .common import ConfigFile, Debug
+from .common import ConfigFile, Debug  # noqa
 
 from ..features import is_available
 
