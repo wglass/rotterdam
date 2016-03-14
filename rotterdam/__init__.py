@@ -1,3 +1,3 @@
-from .client import Rotterdam
-from .exceptions import ConnectionError, NoSuchJob, InvalidPayload
-from .decorators import job
+from .client import Rotterdam  # noqa
+from .exceptions import ConnectionError, NoSuchJob, InvalidPayload  # noqa
+from .decorators import job  # noqa

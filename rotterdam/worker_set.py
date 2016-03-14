@@ -36,7 +36,7 @@ class WorkerSet(object):
             sys.exit(0)
         except SystemExit:
             raise
-        except:
+        except Exception:
             self.master.logger.exception(
                 "Unhandled exception in %s process", worker.name
             )
@@ -45,7 +45,7 @@ class WorkerSet(object):
             self.master.logger.info("%s process exiting", worker.name)
 
     def remove_worker(self):
-        (oldest_worker_pid, worker) = sorted(
+        (oldest_worker_pid, _) = sorted(
             self.workers.items(),
             key=lambda i: i[1].age
         ).pop(0)
@@ -72,7 +72,7 @@ class WorkerSet(object):
         exited_worker_pids = []
         for worker_pid in self.workers:
             try:
-                pid, status = os.waitpid(worker_pid, os.WNOHANG)
+                pid, _ = os.waitpid(worker_pid, os.WNOHANG)
                 if pid == worker_pid:
                     exited_worker_pids.append(worker_pid)
             except OSError as e:

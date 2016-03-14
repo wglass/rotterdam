@@ -4,10 +4,10 @@ import time
 
 
 @job("audience")
-def non_unique_job(arg1, foo=None):
+def non_unique_job(arg1, named_arg=None):
     time.sleep(1)
     print "this was my arg: %s" % arg1
-    print "this was my kwarg: %s" % foo
+    print "this was my kwarg: %s" % named_arg
 
 
 @job("audience", unique=True)
@@ -17,8 +17,8 @@ def unique_job(arg):
 
 
 @job("response", unique=["arg1", "arg2"])
-def semi_unique_job(arg1, arg2, foo=None):
+def semi_unique_job(arg1, arg2, named_arg=None):
     time.sleep(2)
     print "arg1: %s" % arg1
     print "arg2: %s" % arg2
-    print "foo: %s" % foo
+    print "named_arg: %s" % named_arg

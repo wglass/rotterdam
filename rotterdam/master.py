@@ -72,8 +72,8 @@ class Master(Proc):
         if os.path.exists(self.pid_file_path):
             raise RuntimeError(
                 (
-                    "pid file (%s) already exists! \n"
-                    + "If no %s process is running it could be stale."
+                    "pid file (%s) already exists! \n" +
+                    "If no %s process is running it could be stale."
                 ) % (self.name, self.pid_file_path)
             )
 
@@ -130,13 +130,13 @@ class Master(Proc):
                 self.wind_down_immediately()
                 sys.exit(-1)
 
-    def expand_consumers(self, expansion_signal, *args):
+    def expand_consumers(self, expansion_signal, *_):
         new_count = self.consumers.count + 1
         self.logger.info("Expanding number of consumers to %d", new_count)
         self.consumers.count = new_count
         self.arbiters.broadcast(expansion_signal)
 
-    def contract_consumers(self, contraction_signal, *args):
+    def contract_consumers(self, contraction_signal, *_):
         if self.consumers.count <= 1:
             self.logger.info(
                 "Ignoring contraction, number of consumers already at %d",
@@ -149,7 +149,7 @@ class Master(Proc):
         self.consumers.count = new_count
         self.arbiters.broadcast(contraction_signal)
 
-    def reload_config(self, *args):
+    def reload_config(self, *_):
         self.logger.info("Reloading config")
         old_port = self.config.listen_port
 
@@ -163,7 +163,7 @@ class Master(Proc):
         self.arbiters.count = 1
         self.consumers.count = self.config.num_consumers
 
-    def relaunch(self, *args):
+    def relaunch(self, *_):
         os.rename(
             self.pid_file_path,
             self.pid_file_path + ".old." + str(self.pid)
@@ -197,16 +197,16 @@ class Master(Proc):
         self.arbiters.regroup(regenerate=regenerate)
         self.consumers.regroup(regenerate=regenerate)
 
-    def handle_worker_exit(self, *args):
+    def handle_worker_exit(self, *_):
         if not self.wind_down_time:
             self.regroup()
             return
 
         self.regroup(regenerate=False)
         if (
-                self.injectors.count == 0
-                and self.arbiters.count == 0
-                and self.consumers.count == 0
+                self.injectors.count == 0 and
+                self.arbiters.count == 0 and
+                self.consumers.count == 0
         ):
             try:
                 os.unlink(self.pid_file_path)
@@ -218,14 +218,14 @@ class Master(Proc):
             time.sleep(self.wind_down_time - time.time())
             self.broadcast(signal.SIGKILL)
 
-    def halt_current_jobs(self, *args):
+    def halt_current_jobs(self, *_):
         self.logger.info("Toggling job processing")
         self.consumers.broadcast(signal.SIGTSTP)
 
-    def wind_down_gracefully(self, *args):
+    def wind_down_gracefully(self, *_):
         self.wind_down(graceful=True)
 
-    def wind_down_immediately(self, *args):
+    def wind_down_immediately(self, *_):
         self.wind_down(graceful=False)
 
     def wind_down(self, graceful=True):

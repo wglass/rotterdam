@@ -12,8 +12,8 @@ class Control(object):
         self.pid = None
 
     def load_config(self):
-        self.config = Config(self.args.config_file)
-        self.config.load()
+        self.config = Config()
+        self.config.load_from_file(self.args.config_file)
 
     def get_pid(self):
         try:
