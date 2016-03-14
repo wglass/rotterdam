@@ -113,9 +113,9 @@ class Worker(Proc):
 
 
 def selectable_of(input_source):
-    if hasattr(input_source, "_reader"):
-        return input_source._reader
-    elif hasattr(input_source, "socket"):
+    if getattr(input_source, "_reader", None):
+        return input_source._reader  # noqa
+    elif getattr(input_source, "socket", None):
         return input_source.socket
     else:
         return input_source
