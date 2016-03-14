@@ -17,6 +17,11 @@ from .team import Team
 from .redis_extensions import extend_redis
 
 
+NUM_INJECTORS = 2
+
+NUM_ARBITERS = 1
+
+
 class Master(Proc):
 
     signal_map = {
@@ -114,9 +119,9 @@ class Master(Proc):
 
     def run(self):
         super(Master, self).run()
-        self.injectors.count = 2
-        self.arbiters.count = 1
-        self.consumers.count = self.config.num_consumers
+        self.injectors.set_size(NUM_INJECTORS)
+        self.arbiters.set_size(NUM_ARBITERS)
+        self.consumers.set_size(self.config.num_consumers)
 
         while True:
             try:
@@ -131,22 +136,22 @@ class Master(Proc):
                 sys.exit(-1)
 
     def expand_consumers(self, expansion_signal, *_):
-        new_count = self.consumers.count + 1
-        self.logger.info("Expanding number of consumers to %d", new_count)
-        self.consumers.count = new_count
+        new_size = self.consumers.size + 1
+        self.logger.info("Expanding number of consumers to %d", new_size)
+        self.consumers.set_size(new_size)
         self.arbiters.broadcast(expansion_signal)
 
     def contract_consumers(self, contraction_signal, *_):
-        if self.consumers.count <= 1:
+        if self.consumers.size <= 1:
             self.logger.info(
                 "Ignoring contraction, number of consumers already at %d",
-                self.consumers.count
+                self.consumers.size
             )
             return
 
-        new_count = self.consumers.count - 1
-        self.logger.info("Contracting number of consumers to %d", new_count)
-        self.consumers.count = new_count
+        new_size = self.consumers.size - 1
+        self.logger.info("Contracting number of consumers to %d", new_size)
+        self.consumers.size = new_size
         self.arbiters.broadcast(contraction_signal)
 
     def reload_config(self, *_):
@@ -159,9 +164,9 @@ class Master(Proc):
             self.conn.close()
             self.setup_connection()
 
-        self.injectors.count = 2
-        self.arbiters.count = 1
-        self.consumers.count = self.config.num_consumers
+        self.injectors.set_size(NUM_INJECTORS)
+        self.arbiters.set_size(NUM_ARBITERS)
+        self.consumers.set_size(self.config.num_consumers)
 
     def relaunch(self, *_):
         os.rename(
@@ -204,9 +209,9 @@ class Master(Proc):
 
         self.regroup(regenerate=False)
         if (
-                self.injectors.count == 0 and
-                self.arbiters.count == 0 and
-                self.consumers.count == 0
+                self.injectors.size == 0 and
+                self.arbiters.size == 0 and
+                self.consumers.size == 0
         ):
             try:
                 os.unlink(self.pid_file_path)

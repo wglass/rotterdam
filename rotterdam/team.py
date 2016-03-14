@@ -12,11 +12,10 @@ class Team(object):
         self.workers = {}
 
     @property
-    def count(self):
+    def size(self):
         return len(self.workers)
 
-    @count.setter
-    def count(self, new_size):
+    def set_size(self, new_size):
         while len(self.workers) > new_size:
             self.remove_worker()
         while len(self.workers) < new_size:
