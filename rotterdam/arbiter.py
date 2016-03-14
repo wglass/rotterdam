@@ -52,10 +52,10 @@ class Arbiter(Worker):
         job = Payload.deserialize(result['payload'])
         self.redis.qfinish(job.queue_name, job.unique_key)
 
-    def expand_capacity(self, *args):
+    def expand_capacity(self, *_):
         self.capacity += self.multiplier
         self.logger.debug("capacity set to %d", self.capacity)
 
-    def contract_capacity(self, *args):
+    def contract_capacity(self, *_):
         self.capacity -= self.multiplier
         self.logger.debug("capacity set to %d", self.capacity)

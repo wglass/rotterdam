@@ -94,14 +94,14 @@ class Worker(Proc):
                 self.logger.exception("Unhandled error during run loop")
                 sys.exit(-1)
 
-    def toggle_active(self, *args):
+    def toggle_active(self, *_):
         self.active = not self.active
 
-    def wind_down_gracefully(self, *args):
+    def wind_down_gracefully(self, *_):
         self.alive = False
         self.active = False
 
-    def wind_down_immediately(self, *args):
+    def wind_down_immediately(self, *_):
         self.alive = False
         self.active = False
         sys.exit(0)

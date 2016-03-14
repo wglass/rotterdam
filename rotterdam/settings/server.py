@@ -4,7 +4,7 @@ from .common import ConfigFile, Debug
 from ..features import is_available
 
 
-def csv(cls, value):
+def csv(_, value):
     return value.split(",")
 
 
