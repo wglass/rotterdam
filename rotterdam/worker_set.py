@@ -36,7 +36,7 @@ class WorkerSet(object):
             sys.exit(0)
         except SystemExit:
             raise
-        except:
+        except Exception:
             self.master.logger.exception(
                 "Unhandled exception in %s process", worker.name
             )
