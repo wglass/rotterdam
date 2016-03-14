@@ -13,7 +13,7 @@ from .proc import Proc
 from .arbiter import Arbiter
 from .injector import Injector
 from .consumer import Consumer
-from .worker_set import WorkerSet
+from .team import Team
 from .redis_extensions import extend_redis
 
 
@@ -38,9 +38,9 @@ class Master(Proc):
 
         self.config = config
 
-        self.injectors = WorkerSet(self, Injector)
-        self.arbiters = WorkerSet(self, Arbiter)
-        self.consumers = WorkerSet(self, Consumer)
+        self.injectors = Team(self, Injector)
+        self.arbiters = Team(self, Arbiter)
+        self.consumers = Team(self, Consumer)
 
         self.conn = None
         self.redis = None
