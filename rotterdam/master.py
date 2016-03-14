@@ -72,8 +72,8 @@ class Master(Proc):
         if os.path.exists(self.pid_file_path):
             raise RuntimeError(
                 (
-                    "pid file (%s) already exists! \n"
-                    + "If no %s process is running it could be stale."
+                    "pid file (%s) already exists! \n" +
+                    "If no %s process is running it could be stale."
                 ) % (self.name, self.pid_file_path)
             )
 
@@ -204,9 +204,9 @@ class Master(Proc):
 
         self.regroup(regenerate=False)
         if (
-                self.injectors.count == 0
-                and self.arbiters.count == 0
-                and self.consumers.count == 0
+                self.injectors.count == 0 and
+                self.arbiters.count == 0 and
+                self.consumers.count == 0
         ):
             try:
                 os.unlink(self.pid_file_path)

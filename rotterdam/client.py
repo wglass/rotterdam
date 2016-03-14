@@ -80,8 +80,7 @@ class Rotterdam(object):
     def send_payload(self, payload):
         try:
             self.socket.sendall(
-                json.dumps(payload, cls=DateAwareJSONEncoder)
-                + "\n"
+                json.dumps(payload, cls=DateAwareJSONEncoder) + "\n"
             )
         except IOError, e:
             self.disconnect()
